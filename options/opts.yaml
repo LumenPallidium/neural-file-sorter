@@ -1,0 +1,4 @@
+batch_size: 4
+filepath: H:/My Documents/Backgrounds
+in_size : [256, 256]
+epoch_num : 1
