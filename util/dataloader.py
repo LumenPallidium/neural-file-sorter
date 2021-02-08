@@ -68,15 +68,17 @@ class Dataset(torch.utils.data.Dataset):
     mode: used to control whether filetypes are images or audio, string
     transform: function which transforms the input
     """
-    def __init__(self, filepath, mode = "image", transform = transform_im):
+    def __init__(self, filepath, mode = "image", transform = transform_im, scale = (256, 256), return_path = False):
         
         data = map_dirs(filepath)
 
         self.filepath = filepath
-        self.data = data
-        self.summary = summarize_filetypes(self.data)
+        self.data_original = data
+        self.summary = summarize_filetypes(self.data_original)
         self.transform = transform
+        self.scale = scale
         self.mode = mode
+        self.return_path = return_path
         
     #pytorch dataloader likes len and getitem methods in datasets
     def __getitem__(self, index):
@@ -90,8 +92,11 @@ class Dataset(torch.utils.data.Dataset):
             raise(AttributeError(f"{self.mode} filetype is not supported"))
             
         if self.transform is not None:
-            img = self.transform(img)
-        return img
+            img = self.transform(img, scale = self.scale)
+        if self.return_path:
+            return img, path
+        else:
+            return img
 
     def __len__(self):
         return len(self.data)
@@ -111,9 +116,15 @@ class Dataset(torch.utils.data.Dataset):
     
     def initialize(self):
         #needs to be done to filter unsupported filetypes
-        data = self.data.copy()
+        data = self.data_original.copy()
         self.data = data[(data["support"] == "Supported") & (data["filetype"] == self.mode)].reset_index()
         print(f"Data initialized: Unsupported filetypes and non-{self.mode} filetypes dropped")
+        
+    def join_new_col(self, new_data, merge_col = "path"):
+        out_data = self.data.copy()
+        out_data = out_data.merge(new_data, how = "left", on = merge_col)
+        self.data = out_data
+        
 
 class DataLoader():
     """
@@ -121,9 +132,9 @@ class DataLoader():
     ----------
     opt : object of class Options defined in options/options.py
     """
-    def __init__(self, opt):
+    def __init__(self, opt, **kwargs):
         self.opt = opt
-        self.dataset = Dataset(opt.filepath)
+        self.dataset = Dataset(opt.filepath, scale = opt.visual_aa_args["in_size"], **kwargs)
         #need to initialize to drop unsupported filetypes
         self.dataset.initialize()
         self.dataloader = torch.utils.data.DataLoader(

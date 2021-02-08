@@ -14,3 +14,5 @@ class Options():
         opts_dict.update(**kwargs)
         for option, value in opts_dict.items():
             setattr(self, option, value)
+            
+    

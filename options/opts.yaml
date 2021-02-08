@@ -1,4 +1,19 @@
 batch_size: 4
 filepath: H:/My Documents/Backgrounds
-in_size : [256, 256]
+
+visual_aa : [[3, 128, 7, 1, 4], [128, 256, 3, 2, 2], [256, 512, 3, 2, 2]]
+
+visual_aa_args :
+    in_size : [512, 512]
+    in_channels : 3
+    dropout : True
+    dropout_val : 0.3
+
+save_path : ckpts/
+
 epoch_num : 1
+
+
+n_clusters : 8
+
+lll_neighbors : 12

@@ -35,6 +35,9 @@ class VisAutoEncoder(nn.Module):
 
         self.encoder= nn.Sequential()
         self.encoder.add_module("batchnorm1", nn.BatchNorm2d(num_features=in_channels))
+        
+        print(f"Generating Visual Autoencoder with parameters:\n\tName : {name}\n\tImage (C,H,W) : ({in_channels}, {in_size})\n\tDropout Enabled : {dropout}", dropout * f"with value {dropout_val}")
+        
         #these layers do convolution
         for i, filter_size in enumerate(filter_channel_sizes):
             in_channels=filter_size[0]
@@ -68,13 +71,16 @@ class VisAutoEncoder(nn.Module):
                 output_padding=output_padding,
                 bias=False))
             self.decoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
+            
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+    
+    # simple wrapper for saving
     def save(self, save_path = "ckpts/"):
         save(self.state_dict(), save_path + self.name + ".pt")
-        print(f"Model saved to {save_path}")
+        print(f"\tModel saved to {save_path}")
 
     
 def test_autoencoder():

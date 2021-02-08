@@ -6,37 +6,38 @@ This is a PyTorch implementation of an autoencoder-based file sorter. The eventu
 
 ## Current State
 
-Currently, basic dataset utilities and a convolutional autoencoder for images have been implemented.
+Currently, basic dataset utilities and a convolutional autoencoder for images have been implemented, as well as the components for embedding autoencoder encodings and displaying them in 3D space in an interactive dashboard. To run, set a directory folder (filepath variable) in the options/opts.yaml file and then run the app.py file. I will add a requirements.txt file later, currently main requirements are PyTorch, pandas, plotly, dash, and SKLearn (as well as any of their requirements).
+
+## Acknowledgements
+
+In general the many writers for Python, pandas, PyTorch, SKLearn, plotly, and Dash. In particular, I based my dashboard heavily on [this one](https://dash-gallery.plotly.host/dash-tsne/), with reductions in content and changes to image asset loading.
 
 ## Todo
 
 (In no particular order)
-
+* Add more visual autoencoder features
+	* Architecture options
+		* Resnet/skip connections
+		* More layer options
 * Add audio autoencoder
 	* add utils for loading audio files
 	* devise methods for working with audio
 		* 1D convolutions?
 		* arrays of FFTs?
 * Data point embedding functionality
-	* Method to go from encoded image/audio to an N-D embedding space
-	* Methods to find proximity in space
-	* Methods to visualize points in space
+	* Additional methods for embedding
 		* PCA?
 		* t-SNE?
-* Clean up code
-	* Remove hardcoding
-	* Ensure good commenting
 * General utilities
+	* Add requirements.txt (probably waiting until all the basics are in before this)
 	* add optionality for more:
 		* loss functions
 		* optimizers
 		* transformations (e.g. image augmentation)
 	* functionality to switch dataset mode (i.e. image to audio and vice-versa)
 * Dashboard
-	* [Probably based on this](https://dash-gallery.plotly.host/dash-tsne/)
-	* Ideally 2/3D chart with files represented as points
-	* Proximity based on image distance
-	* Clicking image displays it
+	* Clean up, in particular change layout for better aesthetics
+	* Fully solve issue with html decoding
 	* Method to enter new image path, run through encoder, and see its embedding
 * Advanced Add-Ons
 	* Distillation on [CLIP](https://github.com/openai/CLIP) in image training to facilitate image "understanding"
