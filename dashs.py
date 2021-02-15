@@ -1,28 +1,14 @@
 import os
-
 from embedding import generate_embeddings
 from options.options import Options
-
-import pathlib
-from urllib.parse import unquote
-
-from plotly.offline import plot
 import plotly.express as px
-
-import flask
-
 import numpy as np
-import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from PIL import Image
-from io import BytesIO
 from dash.dependencies import Input, Output
 from dash.exceptions import PreventUpdate
-
 import pandas as pd
 import plotly.graph_objs as go
-import scipy.spatial.distance as spatial_distance
 
 opt = Options()
 
@@ -31,7 +17,7 @@ if os.path.exists("data/embeddings.csv"):
     data = pd.read_csv("data/embeddings.csv")
 else:
     print("Generating data...")
-    datafile = generate_embeddings()
+    datafile, label_images = generate_embeddings()
     data = datafile.dataset.data
 
 with open("dash_files/desc.md", "r") as file:
@@ -92,18 +78,21 @@ def create_layout(app, dataset = data):
             ),
             # Body
             html.Div(
-                className="row",
+                className="row_background",
                 style={"padding": "10px"},
                 children=[
-                    dcc.Graph(
-                        id="graph-3d-plot-embedding",
-                        figure=display_3d_scatter_plot(dataset)
+                    html.Div(className="nine columns",
+                             children = [
+                                 dcc.Graph(id="graph-3d-plot-embedding",
+                                      figure=display_3d_scatter_plot(dataset)
+                                )
+                            ]
                     ),
                     html.Div(
                         className="three columns",
                         id="euclidean-distance",
                         children=[
-                            html.Section(
+                            html.Section(className = "card-style",
                                 children=[
                                     html.Div(
                                         id="div-plot-click-message",
@@ -113,8 +102,7 @@ def create_layout(app, dataset = data):
                                             "font-weight": "bold",
                                         },
                                     ),
-                                    html.Img(className="three columns",
-                                        id="div-plot-click-image", 
+                                    html.Img(id="div-plot-click-image", 
                                         height = 480, width = 720)
                                 ],
                                 style={"padding": "5px"}
@@ -146,7 +134,8 @@ def callbacks(app, dataset = data):
 
                 # Retrieve the image corresponding to the index
                 image_path = dataset["path"].iloc[clicked_idx]
-                filename = unquote(image_path.replace(opt.filepath, ""))
+                # removing filepath
+                filename = image_path.replace(opt.filepath, "")
                 
                 return app.get_asset_url(filename)
         return None

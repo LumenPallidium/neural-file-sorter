@@ -38,22 +38,45 @@ class VisAutoEncoder(nn.Module):
         
         print(f"Generating Visual Autoencoder with parameters:\n\tName : {name}\n\tImage (C,H,W) : ({in_channels}, {in_size})\n\tDropout Enabled : {dropout}", dropout * f"with value {dropout_val}")
         
+        # this will be used for deciding output_padding size when deconving
+        # neccesary because Conv2d can map different sized inputs to the same
+        # output size eg both 511 and 512 get mapped to 257 when stride 2 is used
+        size_list = [[in_size[0], in_size[1]]]
+        
         #these layers do convolution
         for i, filter_size in enumerate(filter_channel_sizes):
             in_channels=filter_size[0]
             out_channels=filter_size[1]
+            kernel=filter_size[2]
+            stride=filter_size[3]
+            padding=filter_size[4]
             self.encoder.add_module("conv{}".format(i + 1), nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
-                kernel_size=filter_size[2],
-                stride=filter_size[3],
-                padding=filter_size[4],
+                kernel_size=kernel,
+                stride=stride,
+                padding=padding,
                 bias=False))
+            # computing the  output sizes for this convolution layer
+            # for the first i use in_size, else use previous size
+            if not i:
+                # formulas from https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html#torch.nn.Conv2d
+                h_out = ((in_size[0] + 2*padding - (kernel - 1) - 1) // stride) + 1
+                w_out = ((in_size[1] + 2*padding - (kernel - 1) - 1) // stride) + 1
+                size_list.append([h_out, w_out])
+            else:
+                h_out = ((h_out + 2*padding - (kernel - 1) - 1) // stride) + 1
+                w_out = ((w_out + 2*padding - (kernel - 1) - 1) // stride) + 1
+                size_list.append([h_out, w_out])
+                
             #dropout for robustness, only in the convolution steps
             if dropout:
                 self.encoder.add_module("dropout{}".format(i + 1), nn.Dropout(p=dropout_val))
             self.encoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
 
+        #reversing size_list to get the successive sizes for deconv h,w
+        size_list.reverse()
+        
         self.decoder = nn.Sequential()
         #these layers reverse the previous convolution ops
         for i, filter_size in enumerate(reversed(filter_channel_sizes)):
@@ -61,14 +84,28 @@ class VisAutoEncoder(nn.Module):
             in_channels=filter_size[1]
             out_channels=filter_size[0]
             stride = filter_size[3]
-            output_padding = 1 if stride > 1 else 0
+            kernel=filter_size[2]
+            padding=filter_size[4]
+            
+            # computing the estimated output sizes for this deconv layer
+            # formulas from https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d.html
+            h_in = (size_list[i][0] - 1) * stride - 2 * padding + (kernel - 1) + 1
+            w_in = (size_list[i][1] - 1) * stride - 2 * padding + (kernel - 1) + 1
+            
+            # to decide out_padding, check if estimated size matches next size
+            # eg if estimated size is not equal to the original size, output_padding = 1
+            
+            # not sure if this is the best possible way to ensure autoencoder
+            # input and output sizes are identical, but it is cheap to compute
+            output_padding = h_in != size_list[i + 1][0]
+
             self.decoder.add_module("deconv{}".format(i + 1), nn.ConvTranspose2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
-                kernel_size=filter_size[2],
+                kernel_size=kernel,
                 stride=stride,
-                padding=filter_size[4],
-                output_padding=output_padding,
+                padding=padding,
+                output_padding = output_padding,
                 bias=False))
             self.decoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
             

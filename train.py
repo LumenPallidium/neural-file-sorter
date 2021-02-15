@@ -26,7 +26,6 @@ def train(opt):
     total_iters = 0
     
     if datas.dataset.mode == "image":
-        # current model format, hardcocded, will generalize later
         model = VisAutoEncoder(opt.visual_aa,
                                **opt.visual_aa_args)
         model = model.to(device)
@@ -40,7 +39,9 @@ def train(opt):
     loss_f = torch.nn.MSELoss()
         
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        
+      
+    print(f"\tTotal Model Parameters : {total_params}")
+    
     for epoch in range(1, opt.epoch_num + 1):
         print(f"Epoch {epoch}")
         epoch_start = time.time()

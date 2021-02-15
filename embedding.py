@@ -12,7 +12,7 @@ from sklearn.manifold import locally_linear_embedding
 from sklearn.cluster import k_means
 
 
-def generate_embeddings(retrain = False):
+def generate_embeddings(retrain = False, reencode = False, quick = True):
     """
     Function to generate the embeddings of files. Uses a trained autoencoder
     to first encode the image, then a dimensionality reduction algorithim is 
@@ -24,8 +24,14 @@ def generate_embeddings(retrain = False):
     ----------
     retrain: default False, parameter to retrain neural network if a trained
             one already exists
+    reencode: default False, if True it regenerates image encodings, even if they already
+            exist
+    quick: Collapses encoding vectors, default True. If False, a reshaped version of
+            the encoding array which can be very large, and will take large amounts of
+            space to store and run slowly in embedding and clustering. On the other hand,
+            you can generate representative image for the clusters.
     """
-    def encode_image(model, image):
+    def encode_image(model, image, quick = quick):
         encoding = model.encoder(image)
         # not sure if there is a way to un-hardcode this
         # 1st axis is batch (should be just 1 image now), 2nd is out_channels of convolution, 
@@ -34,15 +40,31 @@ def generate_embeddings(retrain = False):
         # dimensions
         # thus the dimension of the embedding vector is equal to the channel size
         # of the last convolution layer's out_channels
-        encoding_vector = encoding[0].cpu().detach().sum(dim = [1, 2]).numpy()
-        return encoding_vector
+        encoding_vector = encoding.detach()
+        if quick:
+            encoding_vector = encoding_vector.cpu().sum(dim = [1, 2]).numpy()
+        else:
+            initial_shape = encoding_vector.shape
+            encoding_vector = encoding_vector.cpu().reshape((-1,))
+        return encoding_vector, initial_shape
+    
+    def decode_images(centroid_list, out_shape, model, device):
+        print("Converting centroids to images...")
+        image_list = {}
+        for i, encoded_image in enumerate(centroid_list):
+            encoded_image = encoded_image.reshape(out_shape)
+            encoded_image.to(device)
+            image = model.decoder(encoded_image)
+            name = f"label_{i}"
+            image_list[name] = image
+        return image_list
     
     opt = Options()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # retrain conditions
-    if retrain == True or not os.path.exists("ckpts/default_model.pt"):
+    if retrain or not os.path.exists("ckpts/default_model.pt"):
         model = train(opt)
     else:
         model = VisAutoEncoder(opt.visual_aa,
@@ -66,22 +88,31 @@ def generate_embeddings(retrain = False):
     
     iter_count = 0
     
-    print("Generating Encodings")
-    for data, path in datas:
-        
-        if iter_count % 500 == 0:
-                print(f"\tIteration {iter_count}")
-        iter_count += 1
-        
-        data = data.to(device)
-
-        encoding = encode_image(model, data)
-        
-        encodings[path] = encoding
+    if reencode or not os.path.exists("data/encodings.csv"):
+            
+        print("Generating Encodings")
+        for data, path in datas:
+            
+            if iter_count % 500 == 0:
+                    print(f"\tIteration {iter_count}")
+            iter_count += 1
+            
+            data = data.to(device)
     
-    # dictionary of encodings being converted to pandas dict
-    encodings = pd.DataFrame(data = encodings).T
-    
+            encoding, initial_shape = encode_image(model, data)
+            
+            encodings[path] = encoding
+        
+        # dictionary of encodings being converted to pandas dict
+        encodings = pd.DataFrame(data = encodings).T
+        print(f"Encodings of length {encoding.shape} created from array of shape {initial_shape}")
+        encodings.to_csv("data/encodings.csv")
+    else:
+        print("Loading encodings...")
+        encodings = pd.read_csv("data/encodings.csv")
+        print(encodings.columns)
+        
+    print("Encodings retrieved")    
     # but we still need them as numpy array for sklearn functions
     encodings_np = encodings.to_numpy()
     
@@ -91,6 +122,11 @@ def generate_embeddings(retrain = False):
     
     # k-means clustering of our data, i'm only interested in labels tho
     centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
+    
+    if reencode and not quick:
+        label_images = decode_images(centroids, initial_shape, model, device)
+    else:
+        label_images = None
     
     #making a dataframe of embeddings
     encodings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
@@ -103,7 +139,7 @@ def generate_embeddings(retrain = False):
     
     datas.dataset.data.to_csv("data/embeddings.csv", index = False)
     
-    return datas
+    return datas, label_images
     
         
         
