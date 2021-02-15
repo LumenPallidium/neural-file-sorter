@@ -92,13 +92,11 @@ class VisAutoEncoder(nn.Module):
             h_in = (size_list[i][0] - 1) * stride - 2 * padding + (kernel - 1) + 1
             w_in = (size_list[i][1] - 1) * stride - 2 * padding + (kernel - 1) + 1
             
-            # to decide out_padding, check if estimated size matches next size
-            # eg if estimated size is not equal to the original size, output_padding = 1
-            
-            # not sure if this is the best possible way to ensure autoencoder
-            # input and output sizes are identical, but it is cheap to compute
-            output_padding = h_in != size_list[i + 1][0]
+            # to decide output_padding, compute size diff for no output_padding
+            # and the original shape
+            output_padding = size_list[i + 1][0] - h_in 
 
+            #print(h_in, size_list[i + 1][0], output_padding)
             self.decoder.add_module("deconv{}".format(i + 1), nn.ConvTranspose2d(
                 in_channels=in_channels,
                 out_channels=out_channels,

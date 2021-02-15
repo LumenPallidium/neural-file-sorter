@@ -42,10 +42,11 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
         # of the last convolution layer's out_channels
         encoding_vector = encoding.detach()
         if quick:
-            encoding_vector = encoding_vector.cpu().sum(dim = [1, 2]).numpy()
+            initial_shape = encoding_vector.shape
+            encoding_vector = encoding_vector[0].cpu().sum(dim = [1, 2]).numpy()
         else:
             initial_shape = encoding_vector.shape
-            encoding_vector = encoding_vector.cpu().reshape((-1,))
+            encoding_vector = encoding_vector[0].cpu().reshape((-1,))
         return encoding_vector, initial_shape
     
     def decode_images(centroid_list, out_shape, model, device):
