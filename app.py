@@ -7,8 +7,7 @@ from dashs import create_layout, callbacks
 opt = Options()
 
 app = dash.Dash(
-    __name__, meta_tags=[{"name": "viewport", "content": "width=device-width"}],
-    assets_folder= opt.filepath
+    __name__, assets_folder= opt.filepath
 )
 
 server = app.server

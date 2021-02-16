@@ -81,38 +81,23 @@ def create_layout(app, dataset = data):
                 className="row_background",
                 style={"padding": "10px"},
                 children=[
-                    html.Div(className="nine columns",
-                             children = [
+                    html.Div(children = [
                                  dcc.Graph(id="graph-3d-plot-embedding",
                                       figure=display_3d_scatter_plot(dataset)
                                 )
-                            ]
+                            ],
+                             style = {"display": "inline-block", "height":"50%", "width":"50%"}
                     ),
                     html.Div(
-                        className="three columns",
-                        id="euclidean-distance",
-                        children=[
-                            html.Section(className = "card-style",
-                                children=[
-                                    html.Div(
-                                        id="div-plot-click-message",
-                                        style={
-                                            "text-align": "center",
-                                            "margin-bottom": "7px",
-                                            "font-weight": "bold",
-                                        },
-                                    ),
-                                    html.Img(id="div-plot-click-image", 
-                                        height = 480, width = 720)
+                        children=[html.Img(id="div-plot-click-image", 
+                                        style={"maxHeight": "480px", "maxWidth" : "720px"})
                                 ],
-                                style={"padding": "5px"}
+                        style={"display": "inline-block", "maxHeight": "500x", "maxWidth" : "750px"}
                             )
                         ],
                     )
                 ], 
-            ),
-        ],
-    )
+            )
 
 
 def callbacks(app, dataset = data):
@@ -139,16 +124,3 @@ def callbacks(app, dataset = data):
                 
                 return app.get_asset_url(filename)
         return None
-    
-
-    @app.callback(
-        Output("div-plot-click-message", "children"),
-        [Input("graph-3d-plot-embedding", "clickData")],
-    )
-    def display_click_message(clickData, dataset = dataset):
-        # Displays message shown when a point in the graph is clicked
-        if clickData:
-            return "Image Selected"
-        else:
-            return "Click a data point on the scatter plot to display its corresponding image."
-

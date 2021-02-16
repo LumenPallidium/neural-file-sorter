@@ -15,25 +15,9 @@ In general the many writers for Python, pandas, PyTorch, SKLearn, plotly, and Da
 ## Todo
 
 (In no particular order)
-* Add more visual autoencoder features
-	* Architecture options
-		* Resnet/skip connections
-		* More layer options
-* Add audio autoencoder
-	* add utils for loading audio files
-	* devise methods for working with audio
-		* 1D convolutions?
-		* arrays of FFTs?
-* Data point embedding functionality
-	* Additional methods for embedding
-		* PCA?
-		* t-SNE?
+
 * General utilities
 	* Add requirements.txt (probably waiting until all the basics are in before this)
-	* add optionality for more:
-		* loss functions
-		* optimizers
-		* transformations (e.g. image augmentation)
 	* functionality to switch dataset mode (i.e. image to audio and vice-versa)
 * Dashboard
 	* Clean up, in particular change layout for better aesthetics
