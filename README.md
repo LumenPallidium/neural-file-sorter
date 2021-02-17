@@ -12,16 +12,3 @@ Currently, basic dataset utilities and a convolutional autoencoder for images ha
 
 In general the many writers for Python, pandas, PyTorch, SKLearn, plotly, and Dash. In particular, I based my dashboard heavily on [this one](https://dash-gallery.plotly.host/dash-tsne/), with reductions in content and changes to image asset loading.
 
-## Todo
-
-(In no particular order)
-
-* General utilities
-	* Add requirements.txt (probably waiting until all the basics are in before this)
-	* functionality to switch dataset mode (i.e. image to audio and vice-versa)
-* Dashboard
-	* Clean up, in particular change layout for better aesthetics
-	* Fully solve issue with html decoding
-	* Method to enter new image path, run through encoder, and see its embedding
-* Advanced Add-Ons
-	* Distillation on [CLIP](https://github.com/openai/CLIP) in image training to facilitate image "understanding"
