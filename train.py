@@ -6,6 +6,19 @@ import util.dataloader as dl
 from models.visual_models import *
 import models.audio_models
 
+def l_n_reg(model, device, norm = 2):
+    """
+    Wrapper to add a weight regularizer, with adjustable norm.
+    ----------
+    model: model with the weights to be regularized
+    device: either cpu or gpu
+    norm: default 2, the norm to use in regularization
+    """
+    reg_loss = torch.tensor(0., requires_grad=True).to(device)
+    for name, param in model.named_parameters():
+        if 'weight' in name:
+            reg_loss = reg_loss + torch.norm(param, norm)
+    return reg_loss
 
 def train(opt):
     """
@@ -66,7 +79,11 @@ def train(opt):
             output = model(data)
             
             # calculate loss
-            loss = loss_f(output, data)
+            if opt.regularize:
+                reg_loss = l_n_reg(model, device, norm = opt.reg_norm)
+                loss = loss_f(output, data) + opt.reg_penalty * reg_loss
+            else:
+                loss = loss_f(output, data)
             
             # do backprop
             loss.backward()

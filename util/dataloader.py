@@ -48,7 +48,7 @@ def summarize_filetypes(dir_map):
     return out_df
 
 
-def transform_im(pil_im, scale = (256, 256)):
+def transform_im(pil_im, scale = (256, 256), rot = (-20, 20), trans = (0.2, 0.2), rand_scale = (0.5, 2)):
     """
     Simple transform, scales a PIL image to desired size and returns it as a
     pytorch tensor
@@ -56,6 +56,7 @@ def transform_im(pil_im, scale = (256, 256)):
     pil_im: a PIL image file. Note pytorch tensors would also work
     """
     transforms = torchvision.transforms.Compose([
+        torchvision.transforms.RandomAffine(degrees=rot, translate=trans, scale = rand_scale, resample=Image.BILINEAR),
         torchvision.transforms.Resize(scale),
         torchvision.transforms.ToTensor()])
     return transforms(pil_im)

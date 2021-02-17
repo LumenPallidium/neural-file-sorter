@@ -19,3 +19,9 @@ n_clusters : 8
 lll_neighbors : 20
 
 lll_iter : 250
+
+regularize : True
+
+reg_penalty : 0.0001
+
+reg_norm : 2
