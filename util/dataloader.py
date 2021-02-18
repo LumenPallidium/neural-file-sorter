@@ -48,7 +48,7 @@ def summarize_filetypes(dir_map):
     return out_df
 
 
-def transform_im(pil_im, scale = (256, 256), rot = (-20, 20), trans = (0.2, 0.2), rand_scale = (0.5, 2)):
+def transform_im(pil_im, out_size = (256, 256), rot = (-20, 20), trans = (0.2, 0.2), rand_scale = (0.2, 1)):
     """
     Simple transform, scales a PIL image to desired size and returns it as a
     pytorch tensor
@@ -56,8 +56,8 @@ def transform_im(pil_im, scale = (256, 256), rot = (-20, 20), trans = (0.2, 0.2)
     pil_im: a PIL image file. Note pytorch tensors would also work
     """
     transforms = torchvision.transforms.Compose([
-        torchvision.transforms.RandomAffine(degrees=rot, translate=trans, scale = rand_scale, resample=Image.BILINEAR),
-        torchvision.transforms.Resize(scale),
+        torchvision.transforms.RandomAffine(degrees=rot, translate=trans, resample=Image.BILINEAR),
+        torchvision.transforms.RandomResizedCrop(size = out_size, scale = rand_scale),
         torchvision.transforms.ToTensor()])
     return transforms(pil_im)
 
@@ -69,7 +69,7 @@ class Dataset(torch.utils.data.Dataset):
     mode: used to control whether filetypes are images or audio, string
     transform: function which transforms the input
     """
-    def __init__(self, filepath, mode = "image", transform = transform_im, scale = (256, 256), return_path = False):
+    def __init__(self, filepath, mode = "image", transform = transform_im, out_size = (256, 256), return_path = False):
         
         data = map_dirs(filepath)
 
@@ -77,7 +77,7 @@ class Dataset(torch.utils.data.Dataset):
         self.data_original = data
         self.summary = summarize_filetypes(self.data_original)
         self.transform = transform
-        self.scale = scale
+        self.out_size = out_size
         self.mode = mode
         self.return_path = return_path
         
@@ -93,7 +93,7 @@ class Dataset(torch.utils.data.Dataset):
             raise(AttributeError(f"{self.mode} filetype is not supported"))
             
         if self.transform is not None:
-            img = self.transform(img, scale = self.scale)
+            img = self.transform(img, out_size = self.out_size)
         if self.return_path:
             return img, path
         else:
@@ -135,7 +135,7 @@ class DataLoader():
     """
     def __init__(self, opt, **kwargs):
         self.opt = opt
-        self.dataset = Dataset(opt.filepath, scale = opt.visual_aa_args["in_size"], **kwargs)
+        self.dataset = Dataset(opt.filepath, out_size = opt.visual_aa_args["in_size"], **kwargs)
         #need to initialize to drop unsupported filetypes
         self.dataset.initialize()
         self.dataloader = torch.utils.data.DataLoader(
