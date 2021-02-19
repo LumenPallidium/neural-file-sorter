@@ -73,11 +73,13 @@ class VisAutoEncoder(nn.Module):
             if dropout:
                 self.encoder.add_module("dropout{}".format(i + 1), nn.Dropout(p=dropout_val))
             self.encoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
-
+        
+        self.encoder.add_module("flatten", nn.Flatten())
         #reversing size_list to get the successive sizes for deconv h,w
         size_list.reverse()
         
         self.decoder = nn.Sequential()
+        self.decoder.add_module("unflatten", nn.Unflatten(1, (out_channels, h_out, w_out)))
         #these layers reverse the previous convolution ops
         for i, filter_size in enumerate(reversed(filter_channel_sizes)):
             #flip channels when going in reverse

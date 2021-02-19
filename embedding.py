@@ -31,22 +31,21 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
             space to store and run slowly in embedding and clustering. On the other hand,
             you can generate representative image for the clusters.
     """
-    def encode_image(model, image, quick = quick):
+    def encode_image(model, image, quick = quick, reduced_size = 512):
         encoding = model.encoder(image)
-        # not sure if there is a way to un-hardcode this
-        # 1st axis is batch (should be just 1 image now), 2nd is out_channels of convolution, 
-        # 3rd and 4th are size h,w of convolved image
-        # thus, the following line extracts the first batch and sums over the image
-        # dimensions
-        # thus the dimension of the embedding vector is equal to the channel size
-        # of the last convolution layer's out_channels
         encoding_vector = encoding.detach()
         if quick:
+            # takes a long time with default sizes so if quick is enabled
+            # rescale to a better length (default close to 512)
             initial_shape = encoding_vector.shape
-            encoding_vector = encoding_vector[0].cpu().sum(dim = [1, 2]).numpy()
-        else:
-            initial_shape = encoding_vector.shape
-            encoding_vector = encoding_vector[0].cpu().reshape((-1,))
+            initial_length = initial_shape[1]
+            # formula used from here, assuming stride = kernel
+            # https://pytorch.org/docs/stable/generated/torch.nn.AvgPool1d.html#torch.nn.AvgPool1d
+            kernel = int(initial_length / reduced_size)
+            pooler = nn.AvgPool1d(kernel_size = kernel)
+            encoding_vector = pooler(torch.unsqueeze(encoding_vector, 1))
+            encoding_vector = torch.squeeze(encoding_vector, 1)
+        encoding_vector = encoding_vector[0].cpu()
         return encoding_vector, initial_shape
     
     def decode_images(centroid_list, out_shape, model, device):
@@ -90,7 +89,7 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
     iter_count = 0
     
     if reencode or not os.path.exists("data/encodings.csv"):
-            
+        start_encode = time.time()
         print("Generating Encodings")
         for data, path in datas:
             
@@ -108,6 +107,7 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
         encodings = pd.DataFrame(data = encodings).T
         print(f"Encodings of length {encoding.shape} created from array of shape {initial_shape}")
         encodings.to_csv("data/encodings.csv")
+        print(f"Encoding took {time.time() - start_encode}")
     else:
         print("Loading encodings...")
         encodings = pd.read_csv("data/encodings.csv")
