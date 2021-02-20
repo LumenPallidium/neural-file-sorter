@@ -3,6 +3,7 @@ import torch
 import pandas as pd
 import os
 
+from tqdm import tqdm
 from options.options import Options
 import util.dataloader as dl
 from models.visual_models import *
@@ -86,22 +87,24 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
     # the encoder and condensing, see encode_image function
     encodings = {}
     
-    iter_count = 0
-    
     if reencode or not os.path.exists("data/encodings.csv"):
         start_encode = time.time()
         print("Generating Encodings")
-        for data, path in datas:
+        
+        pbar = tqdm(total = len(datas))
+        
+        for data, path in tqdm(datas):
             
-            if iter_count % 500 == 0:
-                    print(f"\tIteration {iter_count}")
-            iter_count += 1
+
+            pbar.update(1)
             
             data = data.to(device)
     
             encoding, initial_shape = encode_image(model, data)
             
             encodings[path] = encoding
+            
+        pbar.close()
         
         # dictionary of encodings being converted to pandas dict
         encodings = pd.DataFrame(data = encodings).T

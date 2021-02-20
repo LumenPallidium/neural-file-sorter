@@ -1,6 +1,7 @@
 import time
 import torch
 
+from tqdm import tqdm
 from options.options import Options
 import util.dataloader as dl
 from models.visual_models import *
@@ -33,9 +34,7 @@ def train(opt):
     datas = dl.DataLoader(opt)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    start = time.time()
-    
+
     total_iters = 0
     
     if datas.dataset.mode == "image":
@@ -60,11 +59,10 @@ def train(opt):
         epoch_start = time.time()
         
         iter_count = 0
-        epoch_loss = 0        
-
+        epoch_loss = 0    
+        
+        pbar = tqdm(total = len(datas))
         for i, data in enumerate(datas):
-            if iter_count % 500 == 0:
-                print(f"\tIteration {iter_count}")
             
             data = data.to(device)
 
@@ -73,7 +71,8 @@ def train(opt):
 
             batch_size = opt.batch_size
             total_iters += batch_size
-            iter_count += batch_size
+
+            pbar.update(batch_size)
             
             # run data through model
             output = model(data)
@@ -95,6 +94,8 @@ def train(opt):
 
         
         model.save()
+        pbar.close()
+        
         epoch_end = time.time()
 
         print(f"End of epoch {epoch} \n\tEpoch Loss : {epoch_loss} \n\tEpoch Time : {epoch_end - epoch_start}")
