@@ -48,17 +48,24 @@ def summarize_filetypes(dir_map):
     return out_df
 
 
-def transform_im(pil_im, out_size = (256, 256), rot = (-20, 20), trans = (0.2, 0.2), rand_scale = (0.2, 1)):
+def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and scale", rot = (-10, 10), trans = (0.2, 0.2), rand_scale = (0.2, 1)):
     """
-    Simple transform, scales a PIL image to desired size and returns it as a
-    pytorch tensor
+    Transforms a PIL Image. 
     ----------
     pil_im: a PIL image file. Note pytorch tensors would also work
     """
-    transforms = torchvision.transforms.Compose([
-        torchvision.transforms.RandomAffine(degrees=rot, translate=trans, resample=Image.BILINEAR),
-        torchvision.transforms.RandomResizedCrop(size = out_size, scale = rand_scale),
-        torchvision.transforms.ToTensor()])
+    if transform_mode == "affine and scale":
+        transforms = torchvision.transforms.Compose([
+            torchvision.transforms.RandomAffine(degrees=rot, translate=trans, resample=Image.BILINEAR),
+            torchvision.transforms.RandomResizedCrop(size = out_size, scale = rand_scale),
+            torchvision.transforms.ToTensor()])
+    elif transform_mode == "resize only":
+        transforms = torchvision.transforms.Compose([
+            torchvision.transforms.Resize(out_size[0]),
+            torchvision.transforms.CenterCrop(out_size),
+            torchvision.transforms.ToTensor()])
+    else:
+        raise(ValueError(f"{transform_mode} transform mode is invalid"))
     return transforms(pil_im)
 
 class Dataset(torch.utils.data.Dataset):
@@ -69,7 +76,7 @@ class Dataset(torch.utils.data.Dataset):
     mode: used to control whether filetypes are images or audio, string
     transform: function which transforms the input
     """
-    def __init__(self, filepath, mode = "image", transform = transform_im, out_size = (256, 256), return_path = False):
+    def __init__(self, filepath, mode = "image", transform = transform_im, transform_mode = "affine and scale", out_size = (256, 256), return_path = False):
         
         data = map_dirs(filepath)
 
@@ -77,9 +84,12 @@ class Dataset(torch.utils.data.Dataset):
         self.data_original = data
         self.summary = summarize_filetypes(self.data_original)
         self.transform = transform
+        self.transform_mode = transform_mode
         self.out_size = out_size
         self.mode = mode
         self.return_path = return_path
+        #need to initialize to drop unsupported filetypes
+        self.initialize()
         
     #pytorch dataloader likes len and getitem methods in datasets
     def __getitem__(self, index):
@@ -93,7 +103,7 @@ class Dataset(torch.utils.data.Dataset):
             raise(AttributeError(f"{self.mode} filetype is not supported"))
             
         if self.transform is not None:
-            img = self.transform(img, out_size = self.out_size)
+            img = self.transform(img, out_size = self.out_size, transform_mode = self.transform_mode)
         if self.return_path:
             return img, path
         else:
@@ -136,8 +146,7 @@ class DataLoader():
     def __init__(self, opt, **kwargs):
         self.opt = opt
         self.dataset = Dataset(opt.filepath, out_size = opt.visual_aa_args["in_size"], **kwargs)
-        #need to initialize to drop unsupported filetypes
-        self.dataset.initialize()
+
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=opt.batch_size)
