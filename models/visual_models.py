@@ -54,7 +54,6 @@ class VisAutoEncoder(nn.Module):
         self.dropout = dropout
         self.dropout_val = dropout_val
         self.name = name
-        self.latent_dim = latent_dim
         self.inner_linear = False
 
         self.encoder= nn.Sequential()
@@ -101,17 +100,14 @@ class VisAutoEncoder(nn.Module):
         h_out, w_out, padding, kernel, stride = create_final_conv(size_list)
         #in channels is previous out channels
         in_channels = out_channels
-        out_channels = latent_dim
         
         size_list.append([1, 1])
-        self.encoder.add_module("conv_final", nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
+        self.encoder.add_module("pooling", nn.AvgPool2d(
                 kernel_size=kernel,
                 stride=stride,
-                padding=padding,
-                bias=False))
+                padding=padding))
         
+        # adding to filter sizes list for transpose convolutions
         filter_channel_sizes.append([in_channels, out_channels, kernel, stride, padding])
         
         self.encoder.add_module("flatten", nn.Flatten())

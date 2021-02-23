@@ -11,7 +11,7 @@ visual_aa_args :
     in_channels : 3
     dropout : True
     dropout_val : 0.5
-    latent_dim : 1024
+    latent_dim : 256
     
 beta : 0.01
 save_path : ckpts/
