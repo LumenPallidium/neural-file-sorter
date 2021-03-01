@@ -9,7 +9,9 @@ import util.dataloader as dl
 from models.visual_models import *
 import models.audio_models
 from train import train
-from sklearn.manifold import locally_linear_embedding
+from sklearn.preprocessing import robust_scale
+from sklearn.manifold import locally_linear_embedding, MDS, Isomap, TSNE
+from sklearn.decomposition import PCA
 from sklearn.cluster import k_means
 
 
@@ -32,20 +34,6 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
             space to store and run slowly in embedding and clustering. On the other hand,
             you can generate representative image for the clusters.
     """
-    
-    # intend to make this a method on the neural network class eventually
-    def encode_image(model, image, reduced_size = 512):
-        encoding = model.encoder(image)
-        if model.variational:
-            mean = model.mean_layer(encoding)
-            log_variance = model.var_layer(encoding)
-            variance = torch.exp(log_variance)
-            pmf = torch.distributions.Normal(mean, variance)
-            encoding = pmf.rsample()
-        
-        encoding_vector = encoding.detach()
-        encoding_vector = encoding_vector[0].cpu()
-        return encoding_vector
     
     def decode_images(centroid_list, model, device):
         print("Converting centroids to images...")
@@ -100,7 +88,7 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
             
             data = data.to(device)
     
-            encoding= encode_image(model, data)
+            encoding= model.encode_image(data)
             
             encodings[path] = encoding
             
@@ -120,12 +108,15 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
     encodings_np = encodings.to_numpy()
     
     # embedding the encoding vectors, note n_components must be 3 for 3D
+    start_embed = time.time()
     print("Embedding Encodings")
-    embeds, err = locally_linear_embedding(encodings_np, n_neighbors = opt.lll_neighbors, n_components = 3)
+    encodings_np = robust_scale(encodings_np)
+    embeds = manifold_function(encodings_np, opt)
     
-    # k-means clustering of our data, i'm only interested in labels tho
+    # k-means clustering of the data
     centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
     
+    print(f"Embedding took {time.time() - start_embed} seconds")
     if not quick:
         label_images = decode_images(centroids, model, device)
     else:
@@ -146,6 +137,21 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
     return datas, label_images
     
         
-        
+def manifold_function(data, opt):
+    method = opt.embedding_method.lower()
+    if method == "lle":
+        embeds, err = locally_linear_embedding(data, **opt.general_manifold_params)
+    elif method == "mds":
+        embeds = MDS(**opt.general_manifold_params).fit_transform(data)
+    elif method == "isomap":
+        embeds = Isomap(**opt.general_manifold_params).fit_transform(data)
+    elif method == "t-sne":
+        embeds = TSNE(**opt.general_manifold_params).fit_transform(data)
+    elif method == "pca":
+        embeds = PCA(**opt.general_manifold_params).fit_transform(data)
+    else:
+        raise ValueError(f"Embedding method {method} not valid. Valid methods are: lle, mds, isomap, t-sne, pca")
+    return embeds
+    
 
     

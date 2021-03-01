@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 
 
-def create_final_conv(image_sizes):
+def create_final_conv(image_sizes, h_out = 1, w_out = 1):
     """
     This function generates a convolution with h,w = 1. Used the formula from
     here :https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html#torch.nn.Conv2d
@@ -16,10 +16,10 @@ def create_final_conv(image_sizes):
     h_prev = image_sizes[-1][0]
     w_prev = image_sizes[-1][1]
     padding = 0
-    stride = 1
-    kernel = h_prev
+    stride = h_prev // h_out
+    kernel = h_prev - stride * (h_out - 1)
     # returning 1 for h_out, w_out
-    return 1, 1, padding, kernel, stride
+    return h_out, w_out, padding, kernel, stride
 
 class VisAutoEncoder(nn.Module):
     """
@@ -46,7 +46,6 @@ class VisAutoEncoder(nn.Module):
                  in_size=(256, 256),
                  dropout = True,
                  dropout_val = 0.2,
-                 latent_dim = 256,
                  inner_linear = False):
         super(VisAutoEncoder, self).__init__()
         self.in_size = in_size
@@ -97,9 +96,10 @@ class VisAutoEncoder(nn.Module):
                 self.encoder.add_module("dropout{}".format(i + 1), nn.Dropout(p=dropout_val))
             self.encoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
             
-        h_out, w_out, padding, kernel, stride = create_final_conv(size_list)
+        h_out, w_out, padding, kernel, stride = create_final_conv(size_list, h_out = 10, w_out = 10)
         #in channels is previous out channels
         in_channels = out_channels
+        latent_dim = in_channels * h_out * w_out
         
         size_list.append([1, 1])
         self.encoder.add_module("pooling", nn.AvgPool2d(
@@ -137,8 +137,9 @@ class VisAutoEncoder(nn.Module):
             w_in = (size_list[i][1] - 1) * stride - 2 * padding + (kernel - 1) + 1
             
             # to decide output_padding, compute size diff for no output_padding
-            # and the original shape
-            output_padding = size_list[i + 1][0] - h_in 
+            # and the original shape (modulo stride fixes odd cases where size
+            # diff is equal to stride)
+            output_padding = (size_list[i + 1][0] - h_in) % stride 
 
             #print(h_in, size_list[i + 1][0], output_padding)
             self.decoder.add_module("deconv{}".format(i + 1), nn.ConvTranspose2d(
@@ -151,12 +152,20 @@ class VisAutoEncoder(nn.Module):
                 bias=False))
             self.decoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
         print("Total Model Parameters: ", sum(p.numel() for p in self.parameters() if p.requires_grad))
+        print(f"Autoencoder Latent Dimension Size: {latent_dim}")
         self.describe_params()
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+    
+    # wrapper for image encoding, returns image from gpu as numpy array
+    def encode_image(self, image):
+        encoding = self.encoder(image)
+        encoding_vector = encoding.detach()
+        encoding_vector = encoding_vector[0].cpu()
+        return encoding_vector
     
     # simple wrapper for saving
     def save(self, save_path = "ckpts/"):
@@ -165,7 +174,7 @@ class VisAutoEncoder(nn.Module):
     
     def describe_params(self):
         for name, params in self.named_parameters():
-            print(name, params.data.shape)
+            print("\t", name, params.data.shape)
             
             
 class VarVisAutoEncoder(VisAutoEncoder):
@@ -208,6 +217,19 @@ class VarVisAutoEncoder(VisAutoEncoder):
         h = pmf.rsample()
         x_out = self.decoder(h)
         return x, mean, log_variance, h, x_out
+    
+    def encode_image(self, image):
+        encoding = self.encoder(image)
+
+        mean = self.mean_layer(encoding)
+        log_variance = self.var_layer(encoding)
+        variance = exp(log_variance)
+        pmf = Normal(mean, variance)
+        encoding = pmf.rsample()
+        
+        encoding_vector = encoding.detach()
+        encoding_vector = encoding_vector[0].cpu()
+        return encoding_vector
 
 
 

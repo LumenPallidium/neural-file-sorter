@@ -129,10 +129,16 @@ def train(opt):
         if opt.variational:
             model = VarVisAutoEncoder(opt.visual_aa,
                                    **opt.visual_aa_args)
+            if opt.continue_train:
+                print(f"Loading existing model: {model.name}")
+                model.load_state_dict(torch.load("ckpts/" + model.name + ".pt"))
             model = model.to(device)
         else:
             model = VisAutoEncoder(opt.visual_aa,
                                    **opt.visual_aa_args)
+            if opt.continue_train:
+                print(f"Loading existing model: {model.name}")
+                model.load_state_dict(torch.load("ckpts/" + model.name + ".pt"))
             model = model.to(device)    
     else:
         raise(AttributeError(f"{datas.dataset.mode} mode is not supported"))
@@ -176,7 +182,8 @@ def train(opt):
             # do backprop
             loss.backward()
             
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+            if opt.clip:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), opt.clip)
             
             # adjust weights with optimizer based on backprop
             optimizer.step()
