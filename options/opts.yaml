@@ -6,10 +6,10 @@ visual_aa : [[3, 300, 7, 4, 4], [300, 150, 5, 3, 2], [150, 75, 3, 2, 2]]
 
 variational : False
 
-continue_train : True
+continue_train : False
 
 visual_aa_args :
-    in_size : [256, 256]
+    in_size : [224, 224]
     in_channels : 3
     dropout : True
     dropout_val : 0.5
@@ -17,7 +17,7 @@ visual_aa_args :
 beta : 0.01
 save_path : ckpts/
 
-epoch_num : 100
+epoch_num : 3
 
 clip : False
 
@@ -36,3 +36,5 @@ regularize : False
 reg_penalty : 0.0001
 
 reg_norm : 2
+
+clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]

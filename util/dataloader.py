@@ -64,6 +64,13 @@ def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and sca
             torchvision.transforms.Resize(out_size[0]),
             torchvision.transforms.CenterCrop(out_size),
             torchvision.transforms.ToTensor()])
+    elif transform_mode == "clip_mode":
+        transforms = torchvision.transforms.Compose([
+            torchvision.transforms.Resize(out_size[0], interpolation=Image.BICUBIC),
+            torchvision.transforms.CenterCrop(out_size[0]),
+            lambda image: image.convert("RGB"),
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),])
     else:
         raise(ValueError(f"{transform_mode} transform mode is invalid"))
     return transforms(pil_im)

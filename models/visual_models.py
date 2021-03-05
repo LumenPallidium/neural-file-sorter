@@ -96,7 +96,7 @@ class VisAutoEncoder(nn.Module):
                 self.encoder.add_module("dropout{}".format(i + 1), nn.Dropout(p=dropout_val))
             self.encoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
             
-        h_out, w_out, padding, kernel, stride = create_final_conv(size_list, h_out = 10, w_out = 10)
+        h_out, w_out, padding, kernel, stride = create_final_conv(size_list, h_out = 5, w_out = 5)
         #in channels is previous out channels
         in_channels = out_channels
         latent_dim = in_channels * h_out * w_out

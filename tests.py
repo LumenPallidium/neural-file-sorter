@@ -30,12 +30,17 @@ model = model.to(device)
 
 # silly but simple way to get a single image from the dataset
 for i, data in enumerate(datas):
-    if i == 0:
-        #plt.imshow(data.detach()[0].permute(1, 2, 0))
+
+    ins = ""
+    while ins != "q":
+        plt.imshow(data.detach()[0].permute(1, 2, 0))
+        plt.show()
         data = data
         data_out = model.forward(data.to(device))
-        #plt.imshow(data_out.detach().cpu()[0].permute(1, 2, 0))
-    else:
-        break
+        ins = input("type n to see images, q to go to next image set...\n")
+        print(f"\n you entered {ins}")
+        plt.imshow(data_out.cpu().detach()[0].permute(1, 2, 0))
+        plt.show()
+
 
 #summary(model, (3, 512, 512))
