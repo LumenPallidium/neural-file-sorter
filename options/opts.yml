@@ -1,8 +1,11 @@
 batch_size: 1
 filepath: H:/My Documents/Backgrounds/
+out_filepath: H:/My Documents/
 external_stylesheets : [options/style_sheet.css]
 
 visual_aa : [[3, 300, 7, 4, 4], [300, 150, 5, 3, 2], [150, 75, 3, 2, 2]]
+
+use_clip : True
 
 variational : False
 
@@ -21,11 +24,11 @@ epoch_num : 3
 
 clip : False
 
-embedding_method : isomap
+embedding_method : t-sne
 
 general_manifold_params :
 
-    n_neighbors : 10
+    #n_neighbors : 10
     n_components : 3
 
    
@@ -37,4 +40,4 @@ reg_penalty : 0.0001
 
 reg_norm : 2
 
-clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]
+clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, interior, vaporwave, tropical, sci-fi, ocean, flower, fallout, fractal, forest, human, woman, vehicle, anime, sunrise, stars, animal, pixel]

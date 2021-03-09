@@ -1,5 +1,6 @@
 import os
 from embedding import generate_embeddings
+from embedding_clip import generate_embeddings_clip
 from options.options import Options
 import plotly.express as px
 import numpy as np
@@ -17,7 +18,10 @@ if os.path.exists("data/embeddings.csv"):
     data = pd.read_csv("data/embeddings.csv")
 else:
     print("Generating data...")
-    datafile, label_images = generate_embeddings()
+    if opt.use_clip:
+        datafile = generate_embeddings_clip()
+    else: 
+        datafile, label_images = generate_embeddings()
     data = datafile.dataset.data
 
 with open("dash_files/desc.md", "r") as file:
@@ -56,7 +60,7 @@ def create_layout(app, dataset = data):
                     html.Div(
                         [
                             html.H3(
-                                "Autoencoder File Sorter",
+                                "Neural File Sorter",
                                 className="header_title",
                                 id="app-title",
                             )
@@ -124,3 +128,4 @@ def callbacks(app, dataset = data):
                 
                 return app.get_asset_url(filename)
         return None
+

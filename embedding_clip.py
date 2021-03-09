@@ -1,6 +1,7 @@
 import time
 import torch
 import pandas as pd
+import numpy as np
 import os
 
 from tqdm import tqdm
@@ -9,11 +10,12 @@ import util.dataloader as dl
 from sklearn.preprocessing import robust_scale
 from sklearn.manifold import locally_linear_embedding, MDS, Isomap, TSNE
 from sklearn.decomposition import PCA
-from sklearn.cluster import k_means
+from sklearn.metrics import silhouette_score
+from sklearn.cluster import k_means, KMeans
 
 import clip
 
-def generate_embeddings_clip(reencode = False):
+def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k = True, fix_labels = True, do_embedding = True):
     """
     Function to generate the embeddings of files. Uses OpenAI's CLIP
     to first encode the image, then a dimensionality reduction algorithim is 
@@ -57,12 +59,13 @@ def generate_embeddings_clip(reencode = False):
             start_encode = time.time()
             print("Generating Encodings")
             
+            # load text before the loop
+            text = clip.tokenize(opt.clip_categories).to(device)
+            print(f"Finding categories {opt.clip_categories} using CLIP")
+            
             # sleeping for tqdm
             time.sleep(0.2)
             pbar = tqdm(total = len(datas))
-            
-            # load text before the loop
-            text = clip.tokenize(opt.clip_categories).to(device)
             
             for data, path in tqdm(datas):
                 
@@ -81,47 +84,104 @@ def generate_embeddings_clip(reencode = False):
                 encodings[path] = probs
                 pbar.update(1)
                 
-            pbar.close()
             
             # dictionary of encodings being converted to pandas dict
             encodings = pd.DataFrame(data = encodings).T
             encodings.columns = opt.clip_categories
             encodings.to_csv("data/encodings.csv")
+            pbar.close()
     else:
         print("Loading encodings...")
         encodings = pd.read_csv("data/encodings.csv", index_col = 0)
         
-    print("Encodings retrieved")    
+    print("Encodings retrieved")
     # but we still need them as numpy array for sklearn functions
     encodings_np = encodings.to_numpy()
     
-    # embedding the encoding vectors, note n_components must be 3 for 3D
-    start_embed = time.time()
-    print("Embedding Encodings")
-    encodings_np = robust_scale(encodings_np)
-    embeds = manifold_function(encodings_np, opt)
+    if normalize_cols:
+        encodings_np = (encodings_np - encodings_np.min(axis = 0)) / (encodings_np.max(axis = 0) - encodings_np.min(axis = 0))
     
-    # k-means clustering of the data
-    centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
+        # k-means clustering of the data
+    if estimate_k:
+        kmeans = get_best_kmeans(encodings_np)
+        labels = kmeans.labels_
+    else:
+        centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
     
-    print(f"Embedding took {time.time() - start_embed} seconds")
+    # adding top 1 label and k-means labels
+    encodings["top_1_label"] = encodings[opt.clip_categories].idxmax(axis = 1)
+    encodings["labels"] = labels
     
-    #making a dataframe of embeddings
-    encodings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
+    if fix_labels:
+        encodings = relabel(encodings, opt.clip_categories)
+            
     embeddings = encodings.reset_index()
-    embeddings = embeddings[[embeddings.columns[0], "embeddings_x", "embeddings_y", "embeddings_z"]]
-    embeddings["labels"] = labels
-    embeddings.columns = ["path", "embeddings_x", "embeddings_y", "embeddings_z", "labels"]
+    embeddings.columns = ["path"] + list(embeddings.columns[1:len(embeddings.columns)])
     
+    if do_embedding:
+        # embedding the encoding vectors, note n_components must be 3 for 3D
+        start_embed = time.time()
+        print("Embedding Encodings")
+        embeds = manifold_function(encodings_np, opt)
+        
+        print(f"Embedding took {time.time() - start_embed} seconds")
+        
+        #making a dataframe of embeddings
+        encodings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
+    
+        
+        embeddings = embeddings[[embeddings.columns[0], "embeddings_x", "embeddings_y", "embeddings_z", "labels", "top_1_label"]]
+        embeddings.columns = ["path", "embeddings_x", "embeddings_y", "embeddings_z", "labels", "top_1_label"]
+        
     #joining embedding data to old data
     datas.dataset.join_new_col(embeddings)
-    
+        
     datas.dataset.data.to_csv("data/embeddings.csv", index = False)
     
     return datas
+
+def get_best_kmeans(np_data, k_max = 25, k_min = 2):
+    """
+    Function to find the best cluster size, based on silhouette score, for 
+    data in a numpy array
+    ----------
+    np_data: numpy array to cluster on
+    k_max: default 25, max number of cluseters to test to
+    k_min: default 2, cluster size to start testing at
+    """
+    
+    k_dict = {}
+    model_dict = {}
+    print(f"\tEstimating best k for clustering\n\t\tRange of k: ({k_min}, {k_max})")
+    for ks in range(k_min, k_max + 1):
+        print(ks)
+        kmeans = KMeans(n_clusters = ks).fit(np_data)
+        labels = kmeans.labels_    
+        
+        model_dict[ks] = kmeans
+        k_dict[ks] = silhouette_score(np_data, labels)
+    best_k = max(k_dict, key = k_dict.get)
+    print(f"\t\tBest k-estimated to be {best_k}, with silhouette score of {k_dict[best_k]}")
+    return model_dict[best_k]
+ 
+def relabel(data, label_cols, labels_col = "labels"):
+    label_pairs = {}
+    available_labels = label_cols
+    for label in data[labels_col].unique():
+        data_label_x = data.loc[data[labels_col] == label, available_labels]
+        new_label = data_label_x.sum(axis = 0).idxmax()
+        label_pairs[label] = new_label
+    data[labels_col] = data[labels_col].replace(label_pairs)
+    return data
     
         
 def manifold_function(data, opt):
+    """
+    Wrapper for the manifold reduction function
+    ----------
+    data: data to be embedded
+    opt: options data, this is where the method is
+    """
     method = opt.embedding_method.lower()
     if method == "lle":
         embeds, err = locally_linear_embedding(data, **opt.general_manifold_params)

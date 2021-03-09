@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import k_means
 
 
-def generate_embeddings(retrain = False, reencode = False, quick = True):
+def generate_embeddings(retrain = False, reencode = False, quick = True, normalize_cols = False):
     """
     Function to generate the embeddings of files. Uses a trained autoencoder
     to first encode the image, then a dimensionality reduction algorithim is 
@@ -106,6 +106,9 @@ def generate_embeddings(retrain = False, reencode = False, quick = True):
     print("Encodings retrieved")    
     # but we still need them as numpy array for sklearn functions
     encodings_np = encodings.to_numpy()
+    
+    if normalize_cols:
+        encodings_np = (encodings_np - encodings_np.min(axis = 0)) / (encodings_np.max(axis = 0) - encodings_np.min(axis = 0))
     
     # embedding the encoding vectors, note n_components must be 3 for 3D
     start_embed = time.time()
