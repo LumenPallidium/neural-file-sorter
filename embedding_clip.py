@@ -67,7 +67,7 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
             time.sleep(0.2)
             pbar = tqdm(total = len(datas))
             
-            for data, path in tqdm(datas):
+            for data, path in datas:
                 
                 data = data.to(device)
         
@@ -113,6 +113,7 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
     encodings["labels"] = labels
     
     if fix_labels:
+        # renaming labels using CLIP categories for clarity
         encodings = relabel(encodings, opt.clip_categories)
             
     embeddings = encodings.reset_index()
@@ -127,7 +128,7 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
         print(f"Embedding took {time.time() - start_embed} seconds")
         
         #making a dataframe of embeddings
-        encodings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
+        embeddings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
     
         
         embeddings = embeddings[[embeddings.columns[0], "embeddings_x", "embeddings_y", "embeddings_z", "labels", "top_1_label"]]
@@ -165,6 +166,9 @@ def get_best_kmeans(np_data, k_max = 25, k_min = 2):
     return model_dict[best_k]
  
 def relabel(data, label_cols, labels_col = "labels"):
+    """
+    Sets label for generic k-means group label to the closest in the CLIP labels.
+    """
     label_pairs = {}
     available_labels = label_cols
     for label in data[labels_col].unique():

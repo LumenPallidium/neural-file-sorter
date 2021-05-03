@@ -81,7 +81,7 @@ def generate_embeddings(retrain = False, reencode = False, quick = True, normali
         time.sleep(0.2)
         pbar = tqdm(total = len(datas))
         
-        for data, path in tqdm(datas):
+        for data, path in datas:
             
 
             pbar.update(1)

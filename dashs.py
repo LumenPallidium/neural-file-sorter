@@ -30,9 +30,9 @@ with open("dash_files/desc.md", "r") as file:
 static = "/static/"
 
 def create_layout(app, dataset = data):
-    def embedding_scatter_plot(df):
+    def embedding_scatter_plot(df, label_col = opt.preferred_labels):
         try:  
-            fig = px.scatter_3d(data, x="embeddings_x", y="embeddings_y", z="embeddings_z", color = "labels")
+            fig = px.scatter_3d(data, x="embeddings_x", y="embeddings_y", z="embeddings_z", color = label_col, height = 700)
             return fig
         except KeyError as error:
             print(error)
@@ -48,14 +48,12 @@ def create_layout(app, dataset = data):
 
         return figure
     return html.Div(
-        className="row",
         style={"max-width": "100%", "font-size": "1.5rem", "padding": "0px 0px"},
         children=[
             # Header
             html.Div(
-                className="row header",
                 id="app-header",
-                style={"background-color": "#f9f9f9"},
+                style = {"text-align" : "center", "font-size" : 40},
                 children=[
                     html.Div(
                         [
@@ -65,15 +63,13 @@ def create_layout(app, dataset = data):
                                 id="app-title",
                             )
                         ],
-                        className="nine columns header_title_container",
                     ),
                 ],
             ),
             # Demo Description
             html.Div(
-                className="row background",
                 id="demo-explanation",
-                style={"padding": "50px 45px"},
+                style={"padding": "25px 25px"},
                 children=[
                     html.Div(
                         id="description-text", children=dcc.Markdown(desc_md)
@@ -82,19 +78,18 @@ def create_layout(app, dataset = data):
             ),
             # Body
             html.Div(
-                className="row_background",
-                style={"padding": "10px"},
+                style={"padding": "10px", "height":"80%"},
                 children=[
                     html.Div(children = [
                                  dcc.Graph(id="graph-3d-plot-embedding",
                                       figure=display_3d_scatter_plot(dataset)
                                 )
                             ],
-                             style = {"display": "inline-block", "height":"50%", "width":"50%"}
+                             style = {"display": "inline-block", "height":"80%", "width":"50%"}
                     ),
                     html.Div(
                         children=[html.Img(id="div-plot-click-image", 
-                                        style={"maxHeight": "480px", "maxWidth" : "720px"})
+                                        style={"maxHeight": "480px", "maxWidth" : "720px", "margin-bottom" : "150px", "margin-left" : "150px"})
                                 ],
                         style={"display": "inline-block", "maxHeight": "500x", "maxWidth" : "750px"}
                             )
