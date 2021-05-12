@@ -15,7 +15,7 @@ from sklearn.cluster import k_means, KMeans
 
 import clip
 
-def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k = True, fix_labels = True, do_embedding = True):
+def generate_embeddings_clip(reencode = False, normalize_cols = False, estimate_k = True, fix_labels = True, do_embedding = True, use_clip_labels = False):
     """
     Function to generate the embeddings of files. Uses OpenAI's CLIP
     to first encode the image, then a dimensionality reduction algorithim is 
@@ -25,14 +25,18 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
     Output data is saved as a datafile for later plotting, as well as returned
     in a Dataset object.
     ----------
-    retrain: default False, parameter to retrain neural network if a trained
-            one already exists
     reencode: default False, if True it regenerates image encodings, even if they already
             exist
-    quick: Collapses encoding vectors, default True. If False, a reshaped version of
-            the encoding array which can be very large, and will take large amounts of
-            space to store and run slowly in embedding and clustering. On the other hand,
-            you can generate representative image for the clusters.
+    normalize_cols : defualt False, if True, embedding vectors have each of their components
+                    normalized based on the values of the same components of other vectors
+    estimate_k : default True, estimate the best k for k-means clustering based on
+                silhouette score
+    fix_labels : default True, sets label for generic k-means group label to the 
+                closest CLIP label, if CLIP labels are used
+    do_embedding : default True, controls whether or not embedding is run (needed for
+                   the dashboard)
+    use_clip_labels : default False, controls whether or not CLIP categories are used,
+                    use this if you want to score and image based on a predefined label
     """
     
     opt = Options()
@@ -56,12 +60,12 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
     
     if reencode or not os.path.exists("data/encodings.csv"):
         with torch.no_grad():
-            start_encode = time.time()
             print("Generating Encodings")
             
-            # load text before the loop
-            text = clip.tokenize(opt.clip_categories).to(device)
-            print(f"Finding categories {opt.clip_categories} using CLIP")
+            if use_clip_labels:
+                # load text before the loop
+                text = clip.tokenize(opt.clip_categories).to(device)
+                print(f"Finding categories {opt.clip_categories} using CLIP")
             
             # sleeping for tqdm
             time.sleep(0.2)
@@ -70,24 +74,24 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
             for data, path in datas:
                 
                 data = data.to(device)
-        
-                # encoding the images, not much point in reassigning but
-                # doing it anyway
-                im_encoding = model.encode_image(data)
-                text_encoding = model.encode_text(text)
-    
+
                 # generating logits for text encodings and converting to
                 # probabilities
-                logits_per_image, logits_per_text = model(data, text)
-                probs = logits_per_image.softmax(dim=-1)[0].cpu().numpy()
-                
-                encodings[path] = probs
+                if use_clip_labels:
+                    logits_per_image, logits_per_text = model(data, text)
+                    probs = logits_per_image.softmax(dim=-1)[0].cpu().numpy()
+                    
+                    encodings[path] = probs
+                else:
+                    im_encoding = model.encode_image(data)
+                    encodings[path] = im_encoding[0].cpu().numpy()
                 pbar.update(1)
                 
             
             # dictionary of encodings being converted to pandas dict
             encodings = pd.DataFrame(data = encodings).T
-            encodings.columns = opt.clip_categories
+            if use_clip_labels:
+                encodings.columns = opt.clip_categories
             encodings.to_csv("data/encodings.csv")
             pbar.close()
     else:
@@ -109,10 +113,11 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
         centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
     
     # adding top 1 label and k-means labels
-    encodings["top_1_label"] = encodings[opt.clip_categories].idxmax(axis = 1)
+    if use_clip_labels:
+        encodings["top_1_label"] = encodings[opt.clip_categories].idxmax(axis = 1)
     encodings["labels"] = labels
     
-    if fix_labels:
+    if fix_labels and use_clip_labels:
         # renaming labels using CLIP categories for clarity
         encodings = relabel(encodings, opt.clip_categories)
             
@@ -131,8 +136,8 @@ def generate_embeddings_clip(reencode = False, normalize_cols = True, estimate_k
         embeddings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
     
         
-        embeddings = embeddings[[embeddings.columns[0], "embeddings_x", "embeddings_y", "embeddings_z", "labels", "top_1_label"]]
-        embeddings.columns = ["path", "embeddings_x", "embeddings_y", "embeddings_z", "labels", "top_1_label"]
+        embeddings = embeddings[[embeddings.columns[0], "embeddings_x", "embeddings_y", "embeddings_z", "labels"] + ["top_1_label" ] * use_clip_labels]
+        embeddings.columns = ["path", "embeddings_x", "embeddings_y", "embeddings_z", "labels"] + ["top_1_label"] * use_clip_labels
         
     #joining embedding data to old data
     datas.dataset.join_new_col(embeddings)

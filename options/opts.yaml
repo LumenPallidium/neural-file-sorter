@@ -11,7 +11,7 @@ variational : False
 
 continue_train : False
 
-preferred_labels : top_1_label
+preferred_labels : labels
 
 visual_aa_args :
     in_size : [224, 224]
