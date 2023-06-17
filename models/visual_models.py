@@ -3,9 +3,6 @@ from torch import randn, save, exp
 from torch.distributions import Normal
 from torchvision import datasets, transforms
 
-import matplotlib.pyplot as plt
-
-
 def create_final_conv(image_sizes, h_out = 1, w_out = 1):
     """
     This function generates a convolution with h,w = 1. Used the formula from
@@ -240,7 +237,7 @@ def test_autoencoder():
     Test function that shows how to construct an autoencoder from the class,
     and to display the before/after images with imshow
     """
-    
+    import matplotlib.pyplot as plt
     #first tuple in list says 3 input channels (RGB), 128 out channels, kernel size of 7, stride of 1, and padding 4
     #first item in a tuple will always have same size as previous tuple's output 
     test = VisAutoEncoder([(3, 128, 7, 1, 4), (128, 256, 3, 2, 2), (256, 512, 3, 2, 2)])

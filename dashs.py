@@ -4,8 +4,8 @@ from embedding_clip import generate_embeddings_clip
 from options.options import Options
 import plotly.express as px
 import numpy as np
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc
+from dash import html
 from dash.dependencies import Input, Output
 from dash.exceptions import PreventUpdate
 import pandas as pd
