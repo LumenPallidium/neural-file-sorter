@@ -1,36 +1,41 @@
-batch_size: 64
+# GENERAL ARGS
 filepath: H:/My Documents/Backgrounds
-out_filepath: H:/My Documents/auto_sorted
-external_stylesheets : [options/style_sheet.css]
-
-
-use_clip : False
+# MODEL ARGS
+visual_aa_args :
+    in_size : [256, 256]
+    in_channels : 3
+    dropout_val : 0.2
+# TRAIN ARGS
+retrain : False
+batch_size: 64
 variational : True
 continue_train : True
 warmup_iters : 3000
+clip_grad : False
 reg_penalty : 0.0001
 lr : 0.0001
 beta : 0.01
 epoch_num : 10
 regularize : False
 reg_norm : 1
-
-
-visual_aa_args :
-    in_size : [256, 256]
-    in_channels : 3
-    dropout_val : 0.2
 save_path : ckpts/
-
-
-clip_grad : False
-
+# CLIP ARGS
+use_clip : True
+use_clip_labels : False
+clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]
+fix_labels : True
+# DASHBOARD AND VIZ ARGS
+reencode : False
+regenerate_embedding : False
+use_hc : True # use hierarchical clustering instead of k-means (ideal for renaming files)
+estimate_k : False
+external_stylesheets : [options/style_sheet.css]
 embedding_method : t-sne
 general_manifold_params :
-
     #n_neighbors : 10
     n_components : 3
-   
 n_clusters : 5
+quick : True # this only works for VAE and involves generating cluster images from latent space cluster centroids
 
-clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]
+# OUTPUT ARGS
+out_filepath: H:/My Documents/auto_sorted

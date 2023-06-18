@@ -6,6 +6,7 @@ from tqdm import tqdm
 from options.options import Options
 import util.dataloader as dl
 from models.visual_models import *
+from models.hierarchical_clusterer import HierarchicalClusterer
 import models.audio_models
 from train import train
 from sklearn.preprocessing import robust_scale
@@ -45,7 +46,8 @@ def setup_opts():
     #set batch_size to 1 and reload dataset
     #must be 1 or extra data will be ignored later
     opt.batch_size = 1
-    datas = dl.DataLoader(opt, transform_mode = "resize only", return_path = True)
+    transform_mode = "clip_mode" if opt.use_clip else "resize only"
+    datas = dl.DataLoader(opt, transform_mode = transform_mode, return_path = True)
     
     # following loop generates the encodings, simply passing data through
     # the encoder and condensing, see encode_image function
@@ -77,7 +79,7 @@ def encode(use_clip, use_clip_labels, model, datas, encodings, opt, device):
                 
                 encodings[path] = probs
             else:
-                encoding = model.encode_image(data).cpu().numpy()
+                encoding = model.encode_image(data)[0].cpu().numpy()
                 encodings[path] = encoding
             
         pbar.close()
@@ -92,14 +94,7 @@ def encode(use_clip, use_clip_labels, model, datas, encodings, opt, device):
     print(f"Encoding took {time.time() - start_encode}")
     return encodings
 
-def generate_embeddings(use_clip = True,
-                        use_clip_labels = True,
-                        retrain = False, 
-                        reencode = False, 
-                        quick = True, 
-                        estimate_k = False,
-                        regenerate_embedding = False,
-                        fix_labels = True):
+def generate_embeddings():
     """
     Function to generate the embeddings of files. Uses a trained autoencoder
     to first encode the image, then a dimensionality reduction algorithim is 
@@ -108,26 +103,19 @@ def generate_embeddings(use_clip = True,
     visualizing the data.
     Output data is saved as a datafile for later plotting, as well as returned
     in a Dataset object.
-    ----------
-    use_clip : default True, whether or not to use CLIP to generate labels
-    use_clip_labels : default True, whether or not to use user-provided CLIP categories
-    retrain: default False, parameter to retrain neural network if a trained
-            one already exists
-    reencode: default False, if True it regenerates image encodings, even if they already
-            exist
-    quick: Collapses encoding vectors, default True. If False, a reshaped version of
-            the encoding array which can be very large, and will take large amounts of
-            space to store and run slowly in embedding and clustering. On the other hand,
-            you can generate representative image for the clusters.
-    estimate_k : Boolean indicating whether or not the best k should be estimated 
-            (takes a while)
-    regenerate_embedding : Boolean indicating whether or not the embedding should be
-            regenerated, if it already exists (takes a while)
-    fix_labels : Boolean indicating whether or not the labels indices should be replaced with
-                text describing the label
     """
     
     opt, device, datas, encodings = setup_opts()
+
+    # special args get their own variables
+    use_clip = opt.use_clip
+    use_clip_labels = opt.use_clip_labels
+    retrain = opt.retrain
+    reencode = opt.reencode
+    quick = opt.quick
+    estimate_k = opt.estimate_k
+    regenerate_embedding = opt.regenerate_embedding
+    fix_labels = opt.fix_labels
 
     if use_clip:
         model, preprocess = clip.load("ViT-B/32", device=device)
@@ -159,14 +147,18 @@ def generate_embeddings(use_clip = True,
             encodings = relabel(encodings, opt.clip_categories)  
 
     else:
-        # k-means clustering of the data
-        if estimate_k:
-            kmeans = get_best_kmeans(encodings_np)
-            labels = kmeans.labels_
+        if opt.use_hc:
+            hc = HierarchicalClusterer()
+            labels = hc.label_data(encodings_np)
         else:
-            centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
-            if not quick:
-                label_images = decode_images(centroids, model, device)
+            # k-means clustering of the data
+            if estimate_k:
+                kmeans = get_best_kmeans(encodings_np)
+                labels = kmeans.labels_
+            else:
+                centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
+                if not quick:
+                    label_images = decode_images(centroids, model, device)
         encodings["labels"] = labels
     
     if regenerate_embedding or (not os.path.exists("data/embeddings.csv")):
@@ -185,7 +177,6 @@ def generate_embeddings(use_clip = True,
         print("Loading embeddings...")
         embeddings = pd.read_csv("data/embeddings.csv")
 
-        
     #joining embedding data to old data
     datas.dataset.join_new_col(embeddings)
 

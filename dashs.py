@@ -18,7 +18,7 @@ if os.path.exists("data/embeddings.csv"):
     data = pd.read_csv("data/embeddings.csv")
 else:
     print("Generating data...")
-    datafile, label_images = generate_embeddings(use_clip = opt.use_clip)
+    datafile, label_images = generate_embeddings()
     data = datafile.dataset.data
 
 with open("dash_files/desc.md", "r") as file:

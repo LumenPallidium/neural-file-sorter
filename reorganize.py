@@ -5,8 +5,12 @@ from time import sleep
 
 from tqdm import tqdm
 from options.options import Options
+from embedding import generate_embeddings
 
-def copy_to_new_loc(keep_old_structure = False, new_folder = "auto_sorted/", reorganize_col = "labels"):
+def copy_to_new_loc(keep_old_structure = False, 
+                    new_folder = "auto_sorted/", 
+                    reorganize_col = "labels",
+                    rename = True):
     """
     Function that sorts data in the hard-drive based on the labels generated in
     the embedding method. By default, it drops any old subfolders.
@@ -17,28 +21,23 @@ def copy_to_new_loc(keep_old_structure = False, new_folder = "auto_sorted/", reo
     reogranize_col: the column to use for reorganizing. defaults to k-means 
         label.
     """
+    assert not (rename and keep_old_structure), "rename and keep_old_structure cannot both be true"
     opt = Options()
 
-    df = pd.read_csv("data/embeddings.csv", index_col = 0)
+    if not os.path.exists("data/embeddings.csv"):
+        generate_embeddings()
+    df = pd.read_csv("data/embeddings.csv")
     
     # the folder where you are copying
     out_folder = opt.out_filepath
     # make the new folder for auto-sorted images
-    try:
-        os.mkdir(out_folder + new_folder)
-    except FileExistsError:
-        print(f"{new_folder} already exists, no need for new folder")
+    os.makedirs(out_folder + new_folder, exist_ok = True)
         
     original_folder = opt.filepath
-    sleep(1)
+    print("Copying files...")
+    sleep(1) # sleep for tqdm
     for ims, label in tqdm(df[["path", reorganize_col]].itertuples(index = False)):
-        path_str = out_folder + new_folder + str(label) + "/"
-        # start by making a folder for the label
-        try:
-            os.mkdir(path_str)
-        except FileExistsError:
-            pass
-        
+
         if keep_old_structure:
             # when keeping old structure, simply trim off 
             ims_out = ims.replace(original_folder, "")
@@ -48,18 +47,25 @@ def copy_to_new_loc(keep_old_structure = False, new_folder = "auto_sorted/", reo
             
             for folder in folders:
                 path_str = path_str + folder + "/"
-                
-                try:
-                    os.mkdir(path_str)
-                except FileExistsError:
-                    pass
+                os.makedirs(path_str, exist_ok = True)
             
         else:
             # when not keeping old structure, extract filename only
             ims_out = ims.split("/")[-1]
+
+            if rename:
+                ims_suffix = ims_out.split(".")[-1]
+                # rename to include label
+                ims_out = str(label) + "." + ims_suffix
+                new_path = out_folder + new_folder + "/" + ims_out
+            else:
+                new_path = out_folder + new_folder + str(label) + "/" + ims_out
         try:
             # manually adding forward slash cause windows uses \ as os.sep
-            shutil.copyfile(ims, out_folder + new_folder + str(label) + "/" + ims_out)
+            shutil.copyfile(ims, new_path)
         except FileNotFoundError:
             print(f"{ims} does not exist")
+
+if __name__ == "__main__":
+    copy_to_new_loc()
 

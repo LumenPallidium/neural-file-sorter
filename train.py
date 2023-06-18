@@ -118,7 +118,6 @@ def train(opt):
         print(f"Epoch {epoch}")
         epoch_start = time.time()
         
-        iter_count = 0
         epoch_loss = 0    
         
         # sleep to ensure tqdm bars looks nice

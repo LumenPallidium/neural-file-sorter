@@ -23,7 +23,7 @@ pip install -r requirements.txt
 
 ## Features
 
-Currently, basic dataset utilities, a convolutional autoencoder and [OpenAI's CLIP model](https://github.com/openai/CLIP) for image encoding have been implemented, as well as the components for embedding network encodings and displaying them in 3D space in an interactive dashboard. I would reccomend following the instructions on [CLIP's github page](https://github.com/openai/CLIP) for its installation details. To run, set a directory folder (filepath variable) in the options/opts.yaml file and then run the app.py file. I will add a requirements.txt file later, currently main requirements are CLIP, PyTorch, pandas, plotly, dash, and SKLearn (as well as any of their requirements).
+Currently, basic dataset utilities, a convolutional autoencoder and [OpenAI's CLIP model](https://github.com/openai/CLIP) for image encoding have been implemented, as well as the components for embedding network encodings and displaying them in 3D space in an interactive dashboard.  To run, set a directory folder (filepath variable) in the options/opts.yaml file and then run the app.py file.
 
 As some use cases for this repo:
 
@@ -32,7 +32,7 @@ As some use cases for this repo:
 	- CLIP is much more powerful and doesn't need to be trained, so it is reccomended
 	- This can be done with manually-coded labels (using clip_categories in the config) or in an unsupervised manner
 - Organizing photos on your drives (see reorganize.py)
-	- Given the categorizations/classifications created by embedding(_clip).py, you can automatically sort images into folders
+	- Given the categorizations/classifications created by embedding.py, you can automatically sort images into folders
 	- Hence, the title of this repo
 	- I've used this for sorting images for use with a GAN, which avoids manual curation of thousands of images
 
@@ -44,8 +44,7 @@ The video above shows the Dashboard for interacting with your file embeddings. T
 
 ## Acknowledgements
 
-In general, OpenAI and the many writers for Python, pandas, PyTorch, SKLearn, plotly, and Dash. In particular, I based my dashboard heavily on [this one](https://dash-gallery.plotly.host/dash-tsne/), with reductions in content and updates
- to image asset loading.
+In general, OpenAI and the many writers for Python, pandas, PyTorch, SKLearn, plotly, and Dash. In particular, I based my dashboard heavily on [this one](https://dash-gallery.plotly.host/dash-tsne/), with reductions in content and updates to image asset loading.
 
 
 
