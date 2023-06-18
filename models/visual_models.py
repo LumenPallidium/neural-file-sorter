@@ -161,7 +161,6 @@ class VisAutoEncoder(nn.Module):
     def encode_image(self, image):
         encoding = self.encoder(image)
         encoding_vector = encoding.detach()
-        encoding_vector = encoding_vector[0].cpu()
         return encoding_vector
     
     # simple wrapper for saving
@@ -225,7 +224,6 @@ class VarVisAutoEncoder(VisAutoEncoder):
         encoding = pmf.rsample()
         
         encoding_vector = encoding.detach()
-        encoding_vector = encoding_vector[0].cpu()
         return encoding_vector
 
 

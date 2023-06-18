@@ -1,6 +1,5 @@
 import os
 from embedding import generate_embeddings
-from embedding_clip import generate_embeddings_clip
 from options.options import Options
 import plotly.express as px
 import numpy as np
@@ -10,6 +9,7 @@ from dash.dependencies import Input, Output
 from dash.exceptions import PreventUpdate
 import pandas as pd
 import plotly.graph_objs as go
+import base64
 
 opt = Options()
 
@@ -18,10 +18,7 @@ if os.path.exists("data/embeddings.csv"):
     data = pd.read_csv("data/embeddings.csv")
 else:
     print("Generating data...")
-    if opt.use_clip:
-        datafile = generate_embeddings_clip()
-    else: 
-        datafile, label_images = generate_embeddings()
+    datafile, label_images = generate_embeddings(use_clip = opt.use_clip)
     data = datafile.dataset.data
 
 with open("dash_files/desc.md", "r") as file:
@@ -30,7 +27,7 @@ with open("dash_files/desc.md", "r") as file:
 static = "/static/"
 
 def create_layout(app, dataset = data):
-    def embedding_scatter_plot(df, label_col = opt.preferred_labels):
+    def embedding_scatter_plot(df, label_col = "labels"):
         try:  
             fig = px.scatter_3d(data, x="embeddings_x", y="embeddings_y", z="embeddings_z", color = label_col, height = 700)
             return fig
@@ -118,9 +115,12 @@ def callbacks(app, dataset = data):
 
                 # Retrieve the image corresponding to the index
                 image_path = dataset["path"].iloc[clicked_idx]
-                # removing filepath
-                filename = image_path.replace(opt.filepath, "")
+                with open(image_path, "rb") as image_file:
+                    img_data = base64.b64encode(image_file.read())
+                    img_data = img_data.decode()
+                    img_data = "{}{}".format("data:image/jpg;base64, ", img_data)
+                    image_file.close()
                 
-                return app.get_asset_url(filename)
-        return None
+                return img_data
+        raise PreventUpdate
 
