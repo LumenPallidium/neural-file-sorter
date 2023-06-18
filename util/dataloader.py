@@ -6,7 +6,9 @@ import torchvision.transforms
 mimetypes.init()
 from PIL import Image
 
-def map_dirs(filepath):
+def map_dirs(filepath,
+             supported = [".png", ".jpg", ".jpeg", ".bmp"],
+             depth = 0):
     """
     Given a filepath, this function builds a map of the directory, returning it
     as a pandas dataframe with features like filetypes
@@ -14,7 +16,10 @@ def map_dirs(filepath):
     filepath: string of the file location
     """
     files = []
+    count = 0
     for dirpath, dirnames, filenames in os.walk(filepath):
+        if count > depth:
+            break
         for file in filenames:
             abs_path = os.path.join(os.path.abspath(dirpath), file)
             filename, extension = os.path.splitext(file)
@@ -30,7 +35,6 @@ def map_dirs(filepath):
         df["path"] = df["path"].str.replace("\\", "/")
     
     #adding flag for supported file types
-    supported = [".png", ".jpg", ".jpeg", ".bmp"]
     df["support"] = "Unsupported"
     df.loc[df["extension"].str.lower().isin(supported), "support"] = "Supported"
     
@@ -97,8 +101,13 @@ class Dataset(torch.utils.data.Dataset):
         self.return_path = return_path
         #need to initialize to drop unsupported filetypes
         self.initialize()
+
+    def initialize(self):
+        #needs to be done to filter unsupported filetypes
+        data = self.data_original.copy()
+        self.data = data[(data["support"] == "Supported") & (data["filetype"] == self.mode)].reset_index()
+        print(f"Data initialized: Unsupported filetypes and non-{self.mode} filetypes dropped")
         
-    #pytorch dataloader likes len and getitem methods in datasets
     def __getitem__(self, index):
         path = self.data.loc[index, "path"]
         if self.mode == "image":
@@ -131,12 +140,6 @@ class Dataset(torch.utils.data.Dataset):
         """
         self.mode = mode_str
         return self
-    
-    def initialize(self):
-        #needs to be done to filter unsupported filetypes
-        data = self.data_original.copy()
-        self.data = data[(data["support"] == "Supported") & (data["filetype"] == self.mode)].reset_index()
-        print(f"Data initialized: Unsupported filetypes and non-{self.mode} filetypes dropped")
         
     def join_new_col(self, new_data, merge_col = "path"):
         out_data = self.data.copy()
