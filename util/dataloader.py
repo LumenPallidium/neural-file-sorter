@@ -5,8 +5,12 @@ import torch.utils.data
 import torchvision.transforms
 mimetypes.init()
 from PIL import Image
+import av
 
-def map_dirs(filepath):
+def map_dirs(filepath,
+             supported = [".png", ".jpg", ".jpeg", ".bmp"],
+             video_supported = [".mp4", ".avi", ".webm", ".mov", ".m4v"],
+             depth = 0):
     """
     Given a filepath, this function builds a map of the directory, returning it
     as a pandas dataframe with features like filetypes
@@ -14,7 +18,10 @@ def map_dirs(filepath):
     filepath: string of the file location
     """
     files = []
+    count = 0
     for dirpath, dirnames, filenames in os.walk(filepath):
+        if count > depth:
+            break
         for file in filenames:
             abs_path = os.path.join(os.path.abspath(dirpath), file)
             filename, extension = os.path.splitext(file)
@@ -24,15 +31,20 @@ def map_dirs(filepath):
             except AttributeError:
                 filetype = "Other"
             files.append([abs_path, filename, extension, filetype])
+        count += 1
     df = pd.DataFrame(files, columns=["path", "filename", "extension", "filetype"])
-    if os.name == 'nt':
+
+    if os.name == "nt":
         #replace backslashes with forward in windows
         df["path"] = df["path"].str.replace("\\", "/")
+
+    if video_supported:
+        # if video support is provided, call it "image"
+        df.loc[df["filetype"] == "video", "filetype"] = "image"
     
     #adding flag for supported file types
-    supported = [".png", ".jpg", ".jpeg", ".bmp"]
     df["support"] = "Unsupported"
-    df.loc[df["extension"].str.lower().isin(supported), "support"] = "Supported"
+    df.loc[df["extension"].str.lower().isin(supported + video_supported), "support"] = "Supported"
     
     return df
 
@@ -56,7 +68,7 @@ def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and sca
     """
     if transform_mode == "affine and scale":
         transforms = torchvision.transforms.Compose([
-            torchvision.transforms.RandomAffine(degrees=rot, translate=trans, resample=Image.BILINEAR),
+            torchvision.transforms.RandomAffine(degrees=rot, translate=trans, interpolation=Image.BILINEAR),
             torchvision.transforms.RandomResizedCrop(size = out_size, scale = rand_scale),
             torchvision.transforms.ToTensor()])
     elif transform_mode == "resize only":
@@ -66,8 +78,8 @@ def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and sca
             torchvision.transforms.ToTensor()])
     elif transform_mode == "clip_mode":
         transforms = torchvision.transforms.Compose([
-            torchvision.transforms.Resize(out_size[0], interpolation=Image.BICUBIC),
-            torchvision.transforms.CenterCrop(out_size[0]),
+            torchvision.transforms.Resize(224, interpolation=Image.BICUBIC),
+            torchvision.transforms.CenterCrop(224),
             lambda image: image.convert("RGB"),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),])
@@ -97,8 +109,13 @@ class Dataset(torch.utils.data.Dataset):
         self.return_path = return_path
         #need to initialize to drop unsupported filetypes
         self.initialize()
+
+    def initialize(self):
+        #needs to be done to filter unsupported filetypes
+        data = self.data_original.copy()
+        self.data = data[(data["support"] == "Supported") & (data["filetype"] == self.mode)].reset_index()
+        print(f"Data initialized: Unsupported filetypes and non-{self.mode} filetypes dropped")
         
-    #pytorch dataloader likes len and getitem methods in datasets
     def __getitem__(self, index):
         path = self.data.loc[index, "path"]
         if self.mode == "image":
@@ -121,7 +138,16 @@ class Dataset(torch.utils.data.Dataset):
     
     #wrapper for image loading
     def load_image(self, im_path):
-        return Image.open(im_path).convert('RGB')
+        if im_path.split(".")[-1] in ["mp4", "avi", "webm", "mov", "m4v"]:
+            stream = av.open(im_path)
+            for frame in stream.decode(video = 0):
+                frame = frame.to_ndarray(format = "rgb24")
+                break
+            stream.close()
+            im = Image.fromarray(frame)
+        else:
+            im = Image.open(im_path).convert('RGB')
+        return im
     
     def mode_update(self, mode_str):
         """
@@ -131,12 +157,6 @@ class Dataset(torch.utils.data.Dataset):
         """
         self.mode = mode_str
         return self
-    
-    def initialize(self):
-        #needs to be done to filter unsupported filetypes
-        data = self.data_original.copy()
-        self.data = data[(data["support"] == "Supported") & (data["filetype"] == self.mode)].reset_index()
-        print(f"Data initialized: Unsupported filetypes and non-{self.mode} filetypes dropped")
         
     def join_new_col(self, new_data, merge_col = "path"):
         out_data = self.data.copy()

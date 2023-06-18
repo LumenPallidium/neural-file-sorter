@@ -1,44 +1,41 @@
-batch_size: 1
-filepath: H:/My Documents/Backgrounds
-out_filepath: H:/My Documents/auto_sorted
-external_stylesheets : [options/style_sheet.css]
-
-visual_aa : [[3, 300, 7, 4, 4], [300, 150, 5, 3, 2], [150, 75, 3, 2, 2]]
-
-use_clip : True
-
-variational : False
-
-continue_train : False
-
-preferred_labels : labels
-
+# GENERAL ARGS
+filepath: H:/My Documents/Wallpapers
+# MODEL ARGS
 visual_aa_args :
-    in_size : [224, 224]
+    in_size : [256, 256]
     in_channels : 3
-    dropout : True
-    dropout_val : 0.5
-    
+    dropout_val : 0.2
+# TRAIN ARGS
+retrain : False
+batch_size: 64
+variational : True
+continue_train : True
+warmup_iters : 3000
+clip_grad : False
+reg_penalty : 0.0001
+lr : 0.0001
 beta : 0.01
+epoch_num : 10
+regularize : False
+reg_norm : 1
 save_path : ckpts/
-
-epoch_num : 3
-
-clip : False
-
+# CLIP ARGS
+use_clip : True
+use_clip_labels : False
+clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]
+fix_labels : True
+# DASHBOARD AND VIZ ARGS
+reencode : False
+regenerate_embedding : False
+use_hc : True # use hierarchical clustering instead of k-means (ideal for renaming files)
+estimate_k : False
+external_stylesheets : [options/style_sheet.css]
 embedding_method : t-sne
-
 general_manifold_params :
-
     #n_neighbors : 10
     n_components : 3
-   
-    
 n_clusters : 5
-regularize : False
+quick : True # this only works for VAE and involves generating cluster images from latent space cluster centroids
 
-reg_penalty : 0.0001
-
-reg_norm : 2
-
-clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]
+# OUTPUT ARGS
+out_filepath: H:/My Documents/auto_sorted

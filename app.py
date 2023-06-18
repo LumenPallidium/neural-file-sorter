@@ -7,8 +7,10 @@ from dashs import create_layout, callbacks
 opt = Options()
 
 app = dash.Dash(
-    __name__, assets_folder= opt.filepath
+    __name__,
+
 )
+
 
 server = app.server
 app.layout = create_layout(app)

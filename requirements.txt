@@ -1,0 +1,9 @@
+torch>=1.7.1
+tqdm
+scikit-learn
+pandas
+plotly
+dash
+Pillow
+pyyaml
+av

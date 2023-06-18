@@ -3,168 +3,245 @@ from torch import randn, save, exp
 from torch.distributions import Normal
 from torchvision import datasets, transforms
 
-import matplotlib.pyplot as plt
 
+class ResidualBlock(nn.Module):
+    """A residual block with two convolutional layers and a skip connection."""
+    def __init__(self, 
+                 in_channels, 
+                 out_channels, 
+                 kernel_size = 7, 
+                 dilation=1, 
+                 bias=True, 
+                 activation=nn.LeakyReLU(negative_slope=0.3),
+                 dropout = 0.0,):
+        super().__init__()
 
-def create_final_conv(image_sizes, h_out = 1, w_out = 1):
-    """
-    This function generates a convolution with h,w = 1. Used the formula from
-    here :https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html#torch.nn.Conv2d
-    ----------
-    image_sizes : the h,w of the output of each convolution layer in a list
-    """
-    h_prev = image_sizes[-1][0]
-    w_prev = image_sizes[-1][1]
-    padding = 0
-    stride = h_prev // h_out
-    kernel = h_prev - stride * (h_out - 1)
-    # returning 1 for h_out, w_out
-    return h_out, w_out, padding, kernel, stride
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=bias, padding = "same")
+        self.conv2 = nn.Conv2d(out_channels, out_channels, 1, bias=bias)
+
+        self.activation = activation
+        self.dropout = nn.Dropout(dropout)
+
+    
+    def forward(self, x):
+        x_p = self.activation(self.conv1(x))
+        x_p = self.conv2(x_p)
+        x_p = self.dropout(x_p)
+        return x + x_p
+    
+class DownsampleBlock(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size = 3,
+                 scale_factor = 4,
+                 dropout = 0.0):
+        super().__init__()
+        self.scale_factor = scale_factor
+
+        self.conv = nn.Conv2d(in_channels, out_channels, 
+                              stride = scale_factor, 
+                              kernel_size = kernel_size, 
+                              padding = kernel_size // 2)
+        
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.dropout(x)
+        return x
+    
+class UpsampleBlock(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size = 3,
+                 scale_factor = 4,
+                 dropout = 0.0):
+        super().__init__()
+        self.scale_factor = scale_factor
+
+        # this style of upsample avoids checkerboard artifacts
+        self.upsample = nn.Upsample(scale_factor = scale_factor)
+        self.conv = nn.Conv2d(in_channels, out_channels,
+                              kernel_size = kernel_size,
+                              padding = "same")
+        
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        x = self.upsample(x)
+        x = self.conv(x)
+        x = self.dropout(x)
+        return x
+    
+class Encoder(nn.Module):
+    def __init__(self,
+                 n_blocks = 4,
+                 in_channels=3,
+                 in_size=(256, 256),
+                 dropout_val = 0.2,
+                 inner_linear = True,
+                 latent_dim = 512,
+                 channel_scale = 2,
+                 norm = nn.LayerNorm,
+                 activation = nn.GELU(),
+                 downsample_factor = 4):
+        
+        super().__init__()
+
+        self.n_blocks = n_blocks
+        self.in_size = in_size
+        ds_ratio = downsample_factor ** n_blocks
+        self.out_size = (in_size[0] // ds_ratio, in_size[1] // ds_ratio)
+        self.in_channels = in_channels
+        self.dropout_val = dropout_val
+        self.inner_linear = inner_linear
+        self.norm = norm
+
+        encoder = []
+        channels = in_channels
+        for i in range(n_blocks):
+            new_channels = channels * channel_scale
+            encoder.append(DownsampleBlock(channels, 
+                                           new_channels, 
+                                           dropout = dropout_val,
+                                           scale_factor = downsample_factor))
+            encoder.append(ResidualBlock(new_channels, 
+                                         new_channels, 
+                                         dropout = dropout_val))
+            encoder.append(activation)
+            channels = new_channels
+
+        self.final_channels = channels
+        
+        if inner_linear:
+            #TODO : make sure decoder can get this shape to unflatten
+            encoder.append(nn.Flatten())
+            encoder.append(nn.Linear(channels * self.out_size[0] * self.out_size[1], latent_dim))
+            encoder.append(activation)
+
+        self.encoder = nn.Sequential(*encoder)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        return x
+    
+class Decoder(nn.Module):
+    def __init__(self,
+                 n_blocks = 4,
+                 in_channels=24,
+                 in_size=(4, 4),
+                 dropout_val = 0.2,
+                 inner_linear = True,
+                 latent_dim = 512,
+                 channel_scale = 2,
+                 norm = nn.LayerNorm,
+                 activation = nn.GELU(),
+                 upsample_factor = 4,
+                 final_activation = nn.Tanh()):
+        
+        super().__init__()
+
+        self.n_blocks = n_blocks
+        self.in_size = in_size
+        us_ratio = upsample_factor ** n_blocks
+        self.out_size = (in_size[0] * us_ratio, in_size[1] * us_ratio)
+        self.in_channels = in_channels
+        self.dropout_val = dropout_val
+        self.inner_linear = inner_linear
+        self.norm = norm
+
+        decoder = []
+
+        if inner_linear:
+            decoder.append(nn.Linear(latent_dim, in_channels * self.in_size[0] * self.in_size[1]))
+            decoder.append(nn.Unflatten(-1, (in_channels, self.in_size[0], self.in_size[1])))
+            decoder.append(activation)
+
+        channels = in_channels
+        for i in range(n_blocks):
+            new_channels = channels // channel_scale
+            decoder.append(activation)
+            decoder.append(UpsampleBlock(channels, 
+                                         new_channels, 
+                                         dropout = dropout_val,
+                                         scale_factor = upsample_factor))
+            decoder.append(ResidualBlock(new_channels, new_channels, dropout = dropout_val))
+            
+            channels = new_channels
+
+        decoder.append(final_activation)
+
+        self.final_channels = channels
+        
+        self.decoder = nn.Sequential(*decoder)
+
+    def forward(self, x):
+        x = self.decoder(x)
+        return x
+
 
 class VisAutoEncoder(nn.Module):
     """
     The standard convolutional autoencoder used in this project. 
     Parameters:
     ----------
-    filter_channel_sizes : list of tuples of form 
-        (in_channels, out_channels, kernel_size, stride, padding)
-        for each layer in the encoder. See test_autoencoder() for example
-        Number of output channels for each unit.
-    in_channels : int, default 3
-        Number of input channels.
-    in_size : tuple of two ints, default (256, 256)
-        Spatial size of the expected input image.
-    dropout : bool, default True
-        Enables or disables dropout in the encoder.
-    dropout_val : float, default 0.2
-        Proportion of tensor that will be dropped.
+
     """
     def __init__(self,
-                 filter_channel_sizes,
+                 n_blocks = 4,
                  name = "default_model",
-                 in_channels=3,
-                 in_size=(256, 256),
-                 dropout = True,
+                 in_channels = 3,
+                 in_size = (256, 256),
                  dropout_val = 0.2,
-                 inner_linear = False):
+                 inner_linear = True,
+                 latent_dim = 512,
+                 norm = nn.LayerNorm):
         super(VisAutoEncoder, self).__init__()
+        self.n_blocks = n_blocks
         self.in_size = in_size
         self.in_channels = in_channels
-        self.dropout = dropout
         self.dropout_val = dropout_val
         self.name = name
-        self.inner_linear = False
+        self.inner_linear = inner_linear
+        self.latent_dim = latent_dim
+        self.norm = norm
 
-        self.encoder= nn.Sequential()
-        self.encoder.add_module("instancenorm1", nn.InstanceNorm2d(num_features=in_channels))
+        self.encoder = Encoder(n_blocks = n_blocks,
+                               in_channels = in_channels,
+                               in_size = in_size,
+                               dropout_val = dropout_val,
+                               inner_linear = inner_linear,
+                               norm = norm,
+                               latent_dim = latent_dim)
         
-        print(f"Generating Visual Autoencoder with parameters:\n\tName : {name}\n\tImage (C,H,W) : ({in_channels}, {in_size})\n\tDropout Enabled : {dropout}", dropout * f"with value {dropout_val}")
+        self.decoder = Decoder(n_blocks = n_blocks,
+                               in_channels = self.encoder.final_channels,
+                               in_size = self.encoder.out_size,
+                               dropout_val = dropout_val,
+                               inner_linear = inner_linear,
+                               norm = norm,
+                               latent_dim = latent_dim)
         
-        # this will be used for deciding output_padding size when deconving
-        # neccesary because Conv2d can map different sized inputs to the same
-        # output size eg both 511 and 512 get mapped to 257 when stride 2 is used
-        size_list = [[in_size[0], in_size[1]]]
         
-        #these layers do convolution
-        for i, filter_size in enumerate(filter_channel_sizes):
-            in_channels=filter_size[0]
-            out_channels=filter_size[1]
-            kernel=filter_size[2]
-            stride=filter_size[3]
-            padding=filter_size[4]
-            self.encoder.add_module("conv{}".format(i + 1), nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel,
-                stride=stride,
-                padding=padding,
-                bias=False))
-            # computing the  output sizes for this convolution layer
-            # for the first i use in_size, else use previous size
-            if not i:
-                # formulas from https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html#torch.nn.Conv2d
-                h_out = ((in_size[0] + 2*padding - (kernel - 1) - 1) // stride) + 1
-                w_out = ((in_size[1] + 2*padding - (kernel - 1) - 1) // stride) + 1
-                size_list.append([h_out, w_out])
-            else:
-                h_out = ((h_out + 2*padding - (kernel - 1) - 1) // stride) + 1
-                w_out = ((w_out + 2*padding - (kernel - 1) - 1) // stride) + 1
-                size_list.append([h_out, w_out])
-                
-            #dropout for robustness, only in the convolution steps
-            if dropout:
-                self.encoder.add_module("dropout{}".format(i + 1), nn.Dropout(p=dropout_val))
-            self.encoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
-            
-        h_out, w_out, padding, kernel, stride = create_final_conv(size_list, h_out = 5, w_out = 5)
-        #in channels is previous out channels
-        in_channels = out_channels
-        latent_dim = in_channels * h_out * w_out
-        
-        size_list.append([1, 1])
-        self.encoder.add_module("pooling", nn.AvgPool2d(
-                kernel_size=kernel,
-                stride=stride,
-                padding=padding))
-        
-        # adding to filter sizes list for transpose convolutions
-        filter_channel_sizes.append([in_channels, out_channels, kernel, stride, padding])
-        
-        self.encoder.add_module("flatten", nn.Flatten())
-        
-        #reversing size_list to get the successive sizes for deconv h,w
-        size_list.reverse()
-        self.decoder = nn.Sequential()
-        
-        if self.inner_linear:
-            conv_out_size = out_channels * h_out * w_out
-            self.encoder.add_module("linear_enc", nn.Linear(conv_out_size, latent_dim))
-            self.decoder.add_module("linear_dec", nn.Linear(latent_dim, conv_out_size))
-        
-        self.decoder.add_module("unflatten", nn.Unflatten(1, (out_channels, h_out, w_out)))
-        #these layers reverse the previous convolution ops
-        for i, filter_size in enumerate(reversed(filter_channel_sizes)):
-            #flip channels when going in reverse
-            in_channels=filter_size[1]
-            out_channels=filter_size[0]
-            stride = filter_size[3]
-            kernel=filter_size[2]
-            padding=filter_size[4]
-            
-            # computing the estimated output sizes for this deconv layer
-            # formulas from https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d.html
-            h_in = (size_list[i][0] - 1) * stride - 2 * padding + (kernel - 1) + 1
-            w_in = (size_list[i][1] - 1) * stride - 2 * padding + (kernel - 1) + 1
-            
-            # to decide output_padding, compute size diff for no output_padding
-            # and the original shape (modulo stride fixes odd cases where size
-            # diff is equal to stride)
-            output_padding = (size_list[i + 1][0] - h_in) % stride 
+        print(f"Generating Visual Autoencoder with parameters:\n\tName : {name}\n\tImage (C,H,W) : ({in_channels}, {in_size})\n\tWith dropout value {dropout_val}")
 
-            #print(h_in, size_list[i + 1][0], output_padding)
-            self.decoder.add_module("deconv{}".format(i + 1), nn.ConvTranspose2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel,
-                stride=stride,
-                padding=padding,
-                output_padding = output_padding,
-                bias=False))
-            self.decoder.add_module("relu{}".format(i + 1), nn.ReLU(inplace=True))
-        print("Total Model Parameters: ", sum(p.numel() for p in self.parameters() if p.requires_grad))
+        self.print_self_params()
         print(f"Autoencoder Latent Dimension Size: {latent_dim}")
-        self.describe_params()
 
-    def forward(self, x):
+    def forward(self, x, return_everything = True):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
     
-    # wrapper for image encoding, returns image from gpu as numpy array
+    def print_self_params(self):
+        print("Total Model Parameters: ", sum(p.numel() for p in self.parameters() if p.requires_grad))
+    
+    # wrapper for image encoding
     def encode_image(self, image):
         encoding = self.encoder(image)
         encoding_vector = encoding.detach()
-        encoding_vector = encoding_vector[0].cpu()
         return encoding_vector
     
     # simple wrapper for saving
@@ -172,9 +249,6 @@ class VisAutoEncoder(nn.Module):
         save(self.state_dict(), save_path + self.name + ".pt")
         print(f"\tModel saved to {save_path}")
     
-    def describe_params(self):
-        for name, params in self.named_parameters():
-            print("\t", name, params.data.shape)
             
             
 class VarVisAutoEncoder(VisAutoEncoder):
@@ -196,19 +270,20 @@ class VarVisAutoEncoder(VisAutoEncoder):
         Proportion of tensor that will be dropped.
     """
     def __init__(self,
-                 filter_channel_sizes,
-                 name = "default_var_model",
+                 n_blocks = 3,
+                 name = "default_model",
                  in_channels=3,
                  in_size=(256, 256),
-                 dropout = True,
                  dropout_val = 0.2,
-                 latent_dim = 256):
-        super(VisAutoEncoder, self).__init__()
+                 latent_dim = 512,
+                 norm = nn.LayerNorm):
+        super().__init__()
 
         self.add_module("mean_layer", nn.Linear(latent_dim, latent_dim))
         self.add_module("var_layer", nn.Linear(latent_dim, latent_dim))
 
-    def forward(self, x):
+    def forward(self, x, return_everything = False):
+        #TODO : check this
         y = self.encoder(x)
         mean = self.mean_layer(y)
         log_variance = self.var_layer(y)
@@ -216,7 +291,10 @@ class VarVisAutoEncoder(VisAutoEncoder):
         pmf = Normal(mean, variance)
         h = pmf.rsample()
         x_out = self.decoder(h)
-        return x, mean, log_variance, h, x_out
+        if return_everything:
+            return x, mean, log_variance, h, x_out
+        else:
+            return x_out
     
     def encode_image(self, image):
         encoding = self.encoder(image)
@@ -224,29 +302,23 @@ class VarVisAutoEncoder(VisAutoEncoder):
         mean = self.mean_layer(encoding)
         log_variance = self.var_layer(encoding)
         variance = exp(log_variance)
+
         pmf = Normal(mean, variance)
         encoding = pmf.rsample()
         
         encoding_vector = encoding.detach()
-        encoding_vector = encoding_vector[0].cpu()
         return encoding_vector
 
 
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
 
+    tests = [VisAutoEncoder(), VarVisAutoEncoder()]
+    for test in tests:
+        test_im = randn(1, 3, 256, 256)
+        test_result = test(test_im).detach()
+        print("Shape stayed same:", test_result.shape == test_im.shape)
+        plt.imshow(test_im[0].permute(1, 2, 0))
+        plt.imshow(test_result[0].permute(1, 2, 0))
 
-    
-def test_autoencoder():
-    """
-    Test function that shows how to construct an autoencoder from the class,
-    and to display the before/after images with imshow
-    """
-    
-    #first tuple in list says 3 input channels (RGB), 128 out channels, kernel size of 7, stride of 1, and padding 4
-    #first item in a tuple will always have same size as previous tuple's output 
-    test = VisAutoEncoder([(3, 128, 7, 1, 4), (128, 256, 3, 2, 2), (256, 512, 3, 2, 2)])
-    test_im = randn(1, 3, 256, 256)
-    test_result = test.forward(test_im).detach()
-    print(test_result.shape)
-    plt.imshow(test_im[0].permute(1, 2, 0))
-    plt.imshow(test_result[0].permute(1, 2, 0))
     
