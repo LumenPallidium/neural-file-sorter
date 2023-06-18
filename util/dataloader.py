@@ -29,6 +29,7 @@ def map_dirs(filepath,
             except AttributeError:
                 filetype = "Other"
             files.append([abs_path, filename, extension, filetype])
+        count += 1
     df = pd.DataFrame(files, columns=["path", "filename", "extension", "filetype"])
     if os.name == 'nt':
         #replace backslashes with forward in windows
