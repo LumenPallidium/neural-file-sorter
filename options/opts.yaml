@@ -1,43 +1,36 @@
-batch_size: 1
+batch_size: 64
 filepath: H:/My Documents/Backgrounds
 out_filepath: H:/My Documents/auto_sorted
 external_stylesheets : [options/style_sheet.css]
 
-visual_aa : [[3, 300, 7, 4, 4], [300, 150, 5, 3, 2], [150, 75, 3, 2, 2]]
 
-use_clip : True
-
-variational : False
-
-continue_train : False
+use_clip : False
+variational : True
+continue_train : True
+warmup_iters : 3000
+reg_penalty : 0.0001
+lr : 0.0001
+beta : 0.01
+epoch_num : 10
+regularize : False
+reg_norm : 1
 
 
 visual_aa_args :
-    in_size : [224, 224]
+    in_size : [256, 256]
     in_channels : 3
-    dropout : True
-    dropout_val : 0.5
-    
-beta : 0.01
+    dropout_val : 0.2
 save_path : ckpts/
 
-epoch_num : 3
 
-clip : False
+clip_grad : False
 
 embedding_method : t-sne
-
 general_manifold_params :
 
     #n_neighbors : 10
     n_components : 3
    
-    
 n_clusters : 5
-regularize : False
-
-reg_penalty : 0.0001
-
-reg_norm : 2
 
 clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]

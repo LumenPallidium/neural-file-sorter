@@ -21,8 +21,7 @@ def load_model(retrain, opt, device):
     if retrain or not os.path.exists("ckpts/default_model.pt"):
         model = train(opt)
     else:
-        model = VisAutoEncoder(opt.visual_aa,
-                                   **opt.visual_aa_args)
+        model = VarVisAutoEncoder(**opt.visual_aa_args) if opt.variational else VisAutoEncoder(**opt.visual_aa_args)
         model.load_state_dict(torch.load("ckpts/default_model.pt"))
         model = model.to(device)
     return model
@@ -230,6 +229,8 @@ def relabel(data, label_cols, labels_col = "labels"):
     return data
         
 def manifold_function(data, opt):
+    """Wrapper for manifold embedding functions, to allow for easy switching between them
+    with a string input"""
     method = opt.embedding_method.lower()
     if method == "lle":
         embeds, err = locally_linear_embedding(data, **opt.general_manifold_params)

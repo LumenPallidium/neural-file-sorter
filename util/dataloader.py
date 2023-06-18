@@ -60,7 +60,7 @@ def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and sca
     """
     if transform_mode == "affine and scale":
         transforms = torchvision.transforms.Compose([
-            torchvision.transforms.RandomAffine(degrees=rot, translate=trans, resample=Image.BILINEAR),
+            torchvision.transforms.RandomAffine(degrees=rot, translate=trans, interpolation=Image.BILINEAR),
             torchvision.transforms.RandomResizedCrop(size = out_size, scale = rand_scale),
             torchvision.transforms.ToTensor()])
     elif transform_mode == "resize only":

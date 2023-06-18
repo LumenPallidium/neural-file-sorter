@@ -138,7 +138,8 @@ class Decoder(nn.Module):
                  channel_scale = 2,
                  norm = nn.LayerNorm,
                  activation = nn.GELU(),
-                 upsample_factor = 4):
+                 upsample_factor = 4,
+                 final_activation = nn.Tanh()):
         
         super().__init__()
 
@@ -161,13 +162,16 @@ class Decoder(nn.Module):
         channels = in_channels
         for i in range(n_blocks):
             new_channels = channels // channel_scale
+            decoder.append(activation)
             decoder.append(UpsampleBlock(channels, 
                                          new_channels, 
                                          dropout = dropout_val,
                                          scale_factor = upsample_factor))
             decoder.append(ResidualBlock(new_channels, new_channels, dropout = dropout_val))
-            decoder.append(activation)
+            
             channels = new_channels
+
+        decoder.append(final_activation)
 
         self.final_channels = channels
         
@@ -226,7 +230,7 @@ class VisAutoEncoder(nn.Module):
         self.print_self_params()
         print(f"Autoencoder Latent Dimension Size: {latent_dim}")
 
-    def forward(self, x):
+    def forward(self, x, return_everything = True):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
@@ -279,6 +283,7 @@ class VarVisAutoEncoder(VisAutoEncoder):
         self.add_module("var_layer", nn.Linear(latent_dim, latent_dim))
 
     def forward(self, x, return_everything = False):
+        #TODO : check this
         y = self.encoder(x)
         mean = self.mean_layer(y)
         log_variance = self.var_layer(y)
@@ -297,6 +302,7 @@ class VarVisAutoEncoder(VisAutoEncoder):
         mean = self.mean_layer(encoding)
         log_variance = self.var_layer(encoding)
         variance = exp(log_variance)
+
         pmf = Normal(mean, variance)
         encoding = pmf.rsample()
         
@@ -304,7 +310,6 @@ class VarVisAutoEncoder(VisAutoEncoder):
         return encoding_vector
 
 
-    
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
