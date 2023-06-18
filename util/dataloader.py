@@ -5,9 +5,11 @@ import torch.utils.data
 import torchvision.transforms
 mimetypes.init()
 from PIL import Image
+import av
 
 def map_dirs(filepath,
              supported = [".png", ".jpg", ".jpeg", ".bmp"],
+             video_supported = [".mp4", ".avi", ".webm", ".mov", ".m4v"],
              depth = 0):
     """
     Given a filepath, this function builds a map of the directory, returning it
@@ -31,13 +33,18 @@ def map_dirs(filepath,
             files.append([abs_path, filename, extension, filetype])
         count += 1
     df = pd.DataFrame(files, columns=["path", "filename", "extension", "filetype"])
-    if os.name == 'nt':
+
+    if os.name == "nt":
         #replace backslashes with forward in windows
         df["path"] = df["path"].str.replace("\\", "/")
+
+    if video_supported:
+        # if video support is provided, call it "image"
+        df.loc[df["filetype"] == "video", "filetype"] = "image"
     
     #adding flag for supported file types
     df["support"] = "Unsupported"
-    df.loc[df["extension"].str.lower().isin(supported), "support"] = "Supported"
+    df.loc[df["extension"].str.lower().isin(supported + video_supported), "support"] = "Supported"
     
     return df
 
@@ -131,7 +138,16 @@ class Dataset(torch.utils.data.Dataset):
     
     #wrapper for image loading
     def load_image(self, im_path):
-        return Image.open(im_path).convert('RGB')
+        if im_path.split(".")[-1] in ["mp4", "avi", "webm", "mov", "m4v"]:
+            stream = av.open(im_path)
+            for frame in stream.decode(video = 0):
+                frame = frame.to_ndarray(format = "rgb24")
+                break
+            stream.close()
+            im = Image.fromarray(frame)
+        else:
+            im = Image.open(im_path).convert('RGB')
+        return im
     
     def mode_update(self, mode_str):
         """

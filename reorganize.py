@@ -8,7 +8,6 @@ from options.options import Options
 from embedding import generate_embeddings
 
 def copy_to_new_loc(keep_old_structure = False, 
-                    new_folder = "auto_sorted/", 
                     reorganize_col = "labels",
                     rename = True):
     """
@@ -17,9 +16,10 @@ def copy_to_new_loc(keep_old_structure = False,
     ----------
     keep_old_structure: default false, boolean that controls if old folder
         names will be replicated within new directory structure
-    new_folder: options data, this is where the method is
     reogranize_col: the column to use for reorganizing. defaults to k-means 
         label.
+    rename: default true, boolean that controls if images will be renamed to
+        include their label. Requires that the data was clustered hierarchically.
     """
     assert not (rename and keep_old_structure), "rename and keep_old_structure cannot both be true"
     opt = Options()
@@ -31,7 +31,7 @@ def copy_to_new_loc(keep_old_structure = False,
     # the folder where you are copying
     out_folder = opt.out_filepath
     # make the new folder for auto-sorted images
-    os.makedirs(out_folder + new_folder, exist_ok = True)
+    os.makedirs(out_folder, exist_ok = True)
         
     original_folder = opt.filepath
     print("Copying files...")
@@ -57,9 +57,9 @@ def copy_to_new_loc(keep_old_structure = False,
                 ims_suffix = ims_out.split(".")[-1]
                 # rename to include label
                 ims_out = str(label) + "." + ims_suffix
-                new_path = out_folder + new_folder + "/" + ims_out
+                new_path = out_folder +  "/" + ims_out
             else:
-                new_path = out_folder + new_folder + str(label) + "/" + ims_out
+                new_path = out_folder + "/" + str(label) + "/" + ims_out
         try:
             # manually adding forward slash cause windows uses \ as os.sep
             shutil.copyfile(ims, new_path)

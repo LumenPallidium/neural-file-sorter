@@ -10,8 +10,8 @@ class HierarchicalClusterer:
         self.clusterer = AgglomerativeClustering(compute_full_tree = True,
                                                  compute_distances = True,
                                                  **sklearn_args)
-        # used for generating labels, reverse order better for sorting
-        self.chars = "zyxwvutsrqponmlkjihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA9876543210"
+        # used for generating labels
+        self.chars = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
     
     def fit(self, data, **fit_args):

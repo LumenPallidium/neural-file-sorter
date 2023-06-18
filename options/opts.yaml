@@ -1,5 +1,5 @@
 # GENERAL ARGS
-filepath: H:/My Documents/Backgrounds
+filepath: H:/My Documents/Wallpapers
 # MODEL ARGS
 visual_aa_args :
     in_size : [256, 256]

@@ -21,9 +21,22 @@ As usual, the requirements file can be installed by navigating to this folder an
 pip install -r requirements.txt
 ```
 
+## Usage
+
+There is effectively a hierarchy of runnable files, where each subsequent one will also run previous ones. For example, you could run a training file on its own or run the embedding file, which will train a model if no pre-trained one exists. Options are configured in options/opts.yaml. At minimum, you will need to set the directory you want to sort in that config file.
+
+As an optional pre-processing step, you might want remove duplicates in your file. I have a [script for doing this with the imagehash library in another repository](https://github.com/LumenPallidium/image-dataset-utils/blob/main/duplicate_remover.py). 
+
+The runnable files are as follows:
+
+* train.py will train an autoencoder neural network on the directory in your config file. You can set it to be variational or not (note variational autoencoders need more data).
+* embedding.py runs train.py if no pre-trained model (e.g. CLIP or one you trained yourself) exists. It also handles embedding your folder of images/videos, clustering them with either hierarchical clustering or K-means clustering, and generating a 3D embedding for plotting. 
+* app.py runs embedding.py if its outputs don't exist and runs the visualizations and dashboards (pictured below). Note, you will want to use K-means clustering or CLIP categories (see options) if visualizing.
+* reorganize.py will actually modify files on your computer, copying and sorting files from and to directories specified in the config file. Note if using the rename = True flag, you will need to have run hierarchical clustering (this generates a nice naming of files based on the hierarchy of clusters). As before, it runs embedding.py if it hasn't been run yet.
+
 ## Features
 
-Currently, basic dataset utilities, a convolutional autoencoder and [OpenAI's CLIP model](https://github.com/openai/CLIP) for image encoding have been implemented, as well as the components for embedding network encodings and displaying them in 3D space in an interactive dashboard.  To run, set a directory folder (filepath variable) in the options/opts.yaml file and then run the app.py file.
+Currently, basic dataset utilities, a convolutional autoencoder and [OpenAI's CLIP model](https://github.com/openai/CLIP) for image encoding have been implemented, as well as the components for embedding network encodings and displaying them in 3D space in an interactive dashboard.  
 
 As some use cases for this repo:
 

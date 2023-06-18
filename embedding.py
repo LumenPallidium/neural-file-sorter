@@ -237,5 +237,6 @@ def manifold_function(data, opt):
         raise ValueError(f"Embedding method {method} not valid. Valid methods are: lle, mds, isomap, t-sne, pca")
     return embeds
     
-
+if __name__ == "__main__":
+    generate_embeddings()
     
