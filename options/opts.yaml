@@ -1,5 +1,6 @@
 # GENERAL ARGS
-filepath: H:/My Documents/Wallpapers
+filepath: Z:/ILSVRC/Data/CLS-LOC/train
+map_depth : -1 # how many subfolders deep to map
 # MODEL ARGS
 visual_aa_args :
     in_size : [256, 256]
@@ -10,12 +11,14 @@ retrain : False
 batch_size: 64
 variational : True
 continue_train : True
-warmup_iters : 3000
+warmup_iters : 10000
+sample_dir : data/
+samples_every : 156 # how frequently to save samples, note this is in batches so ~10k here
 clip_grad : False
 reg_penalty : 0.0001
 lr : 0.0001
 beta : 0.01
-epoch_num : 10
+epoch_num : 1
 regularize : False
 reg_norm : 1
 save_path : ckpts/

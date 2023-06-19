@@ -1,5 +1,6 @@
 import time
 import torch
+import torchvision
 import os
 from tqdm import tqdm
 from options.options import Options
@@ -22,6 +23,27 @@ def l_n_reg(model, device, norm = 1):
         if 'weight' in name:
             reg_loss = reg_loss + torch.norm(param, norm)
     return reg_loss
+
+def tensor2im(x):
+    return torchvision.transforms.ToPILImage()(x)
+
+def save_im(x, path):
+    tensor2im(x).save(path)
+
+def export_samples(samples, opt, suffix = "", rows = 2, cols = 2):
+    sample_save_dir = os.path.join(opt.sample_dir, "samples")
+    os.makedirs(sample_save_dir, exist_ok = True)
+
+    if len(samples.shape) == 4:
+        # select only the rows x cols item in the batch
+        samples = samples[:rows*cols]
+        # make a grid of the samples
+        samples = torchvision.utils.make_grid(samples, nrow = rows, padding = 2, pad_value = 1)
+    # note that rank 3 tensors are implictlty assumed to be (C, H, W)
+    
+    # save the samples
+    save_im(samples, os.path.join(sample_save_dir, f"sample_{suffix}.png"))
+
 
 def create_loss(opt):
     """
@@ -94,7 +116,7 @@ def train(opt):
     opts: instance of Options class
     """
     os.makedirs("ckpts", exist_ok = True)
-    datas = dl.DataLoader(opt)
+    datas = dl.DataLoader(opt, map_depth = opt.map_depth)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -154,6 +176,16 @@ def train(opt):
             optimizer.step()
             
             epoch_loss += loss.item()
+
+            if (i % opt.samples_every) == 0:
+                model.save()
+                if opt.variational:
+                    out_im = output[4]
+                else:
+                    out_im = output
+                # save samples
+                export_samples(out_im, opt, suffix = str(i))
+                print(f"\tSamples saved. Current loss per iter: {epoch_loss / (i + 1)}")
 
         model.save()
         pbar.close()

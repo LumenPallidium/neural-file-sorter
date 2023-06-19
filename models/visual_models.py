@@ -82,9 +82,9 @@ class Encoder(nn.Module):
                  in_size=(256, 256),
                  dropout_val = 0.2,
                  inner_linear = True,
-                 latent_dim = 512,
-                 channel_scale = 2,
-                 norm = nn.LayerNorm,
+                 latent_dim = 256,
+                 channel_scale = 3,
+                 layer_norm = True,
                  activation = nn.GELU(),
                  downsample_factor = 4):
         
@@ -97,7 +97,8 @@ class Encoder(nn.Module):
         self.in_channels = in_channels
         self.dropout_val = dropout_val
         self.inner_linear = inner_linear
-        self.norm = norm
+        if layer_norm:
+            self.norm = nn.LayerNorm((in_channels, in_size[0], in_size[1]))
 
         encoder = []
         channels = in_channels
@@ -124,6 +125,7 @@ class Encoder(nn.Module):
         self.encoder = nn.Sequential(*encoder)
 
     def forward(self, x):
+        x = self.norm(x)
         x = self.encoder(x)
         return x
     
@@ -134,9 +136,8 @@ class Decoder(nn.Module):
                  in_size=(4, 4),
                  dropout_val = 0.2,
                  inner_linear = True,
-                 latent_dim = 512,
-                 channel_scale = 2,
-                 norm = nn.LayerNorm,
+                 latent_dim = 256,
+                 channel_scale = 3,
                  activation = nn.GELU(),
                  upsample_factor = 4,
                  final_activation = nn.Tanh()):
@@ -150,7 +151,6 @@ class Decoder(nn.Module):
         self.in_channels = in_channels
         self.dropout_val = dropout_val
         self.inner_linear = inner_linear
-        self.norm = norm
 
         decoder = []
 
@@ -197,7 +197,7 @@ class VisAutoEncoder(nn.Module):
                  dropout_val = 0.2,
                  inner_linear = True,
                  latent_dim = 512,
-                 norm = nn.LayerNorm):
+                 layer_norm = True):
         super(VisAutoEncoder, self).__init__()
         self.n_blocks = n_blocks
         self.in_size = in_size
@@ -206,14 +206,14 @@ class VisAutoEncoder(nn.Module):
         self.name = name
         self.inner_linear = inner_linear
         self.latent_dim = latent_dim
-        self.norm = norm
+
 
         self.encoder = Encoder(n_blocks = n_blocks,
                                in_channels = in_channels,
                                in_size = in_size,
                                dropout_val = dropout_val,
                                inner_linear = inner_linear,
-                               norm = norm,
+                               layer_norm = layer_norm,
                                latent_dim = latent_dim)
         
         self.decoder = Decoder(n_blocks = n_blocks,
@@ -221,7 +221,6 @@ class VisAutoEncoder(nn.Module):
                                in_size = self.encoder.out_size,
                                dropout_val = dropout_val,
                                inner_linear = inner_linear,
-                               norm = norm,
                                latent_dim = latent_dim)
         
         
@@ -276,8 +275,15 @@ class VarVisAutoEncoder(VisAutoEncoder):
                  in_size=(256, 256),
                  dropout_val = 0.2,
                  latent_dim = 512,
-                 norm = nn.LayerNorm):
-        super().__init__()
+                 layer_norm = True):
+        super().__init__(n_blocks = n_blocks,
+                         name = name,
+                         in_channels = in_channels,
+                         in_size = in_size,
+                         dropout_val = dropout_val,
+                         inner_linear = True,
+                         latent_dim = latent_dim,
+                         layer_norm = layer_norm)
 
         self.add_module("mean_layer", nn.Linear(latent_dim, latent_dim))
         self.add_module("var_layer", nn.Linear(latent_dim, latent_dim))

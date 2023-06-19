@@ -20,7 +20,7 @@ def map_dirs(filepath,
     files = []
     count = 0
     for dirpath, dirnames, filenames in os.walk(filepath):
-        if count > depth:
+        if (count > depth) and (depth > -1):
             break
         for file in filenames:
             abs_path = os.path.join(os.path.abspath(dirpath), file)
@@ -60,7 +60,7 @@ def summarize_filetypes(dir_map):
     return out_df
 
 
-def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and scale", rot = (-10, 10), trans = (0.2, 0.2), rand_scale = (0.2, 1)):
+def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and scale", rot = (-10, 10), trans = (0.2, 0.2), rand_scale = (0.9, 1.1)):
     """
     Transforms a PIL Image. 
     ----------
@@ -85,7 +85,7 @@ def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and sca
             torchvision.transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),])
     else:
         raise(ValueError(f"{transform_mode} transform mode is invalid"))
-    return transforms(pil_im)
+    return transforms
 
 class Dataset(torch.utils.data.Dataset):
     """
@@ -95,26 +95,38 @@ class Dataset(torch.utils.data.Dataset):
     mode: used to control whether filetypes are images or audio, string
     transform: function which transforms the input
     """
-    def __init__(self, filepath, mode = "image", transform = transform_im, transform_mode = "affine and scale", out_size = (256, 256), return_path = False):
+    def __init__(self, 
+                 filepath, 
+                 mode = "image", 
+                 transform_mode = "affine and scale", 
+                 out_size = (256, 256), 
+                 return_path = False,
+                 map_depth = 0,
+                 shuffle = True):
         
-        data = map_dirs(filepath)
+        data = map_dirs(filepath, depth = map_depth)
 
         self.filepath = filepath
         self.data_original = data
         self.summary = summarize_filetypes(self.data_original)
-        self.transform = transform
-        self.transform_mode = transform_mode
+        
         self.out_size = out_size
         self.mode = mode
         self.return_path = return_path
-        #need to initialize to drop unsupported filetypes
-        self.initialize()
 
-    def initialize(self):
+        self.transform_mode = transform_mode
+        self.transform = transform_im(transform_mode, out_size = self.out_size, transform_mode = self.transform_mode) 
+        #need to initialize to drop unsupported filetypes
+        self.data = None
+        self.initialize(shuffle = shuffle)
+
+    def initialize(self, shuffle = True):
         #needs to be done to filter unsupported filetypes
         data = self.data_original.copy()
         self.data = data[(data["support"] == "Supported") & (data["filetype"] == self.mode)].reset_index()
         print(f"Data initialized: Unsupported filetypes and non-{self.mode} filetypes dropped")
+        if shuffle:
+            self.shuffle()
         
     def __getitem__(self, index):
         path = self.data.loc[index, "path"]
@@ -127,7 +139,7 @@ class Dataset(torch.utils.data.Dataset):
             raise(AttributeError(f"{self.mode} filetype is not supported"))
             
         if self.transform is not None:
-            img = self.transform(img, out_size = self.out_size, transform_mode = self.transform_mode)
+            img = self.transform(img)
         if self.return_path:
             return img, path
         else:
@@ -162,6 +174,9 @@ class Dataset(torch.utils.data.Dataset):
         out_data = self.data.copy()
         out_data = out_data.merge(new_data, how = "left", on = merge_col)
         self.data = out_data
+
+    def shuffle(self):
+        self.data = self.data.sample(frac=1).reset_index(drop=True)
         
 
 class DataLoader():
