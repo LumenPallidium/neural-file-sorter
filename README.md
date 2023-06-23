@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This is a PyTorch implementation of a file sorter that uses neural networks to sort images based on perceptual similarity. The eventual goal of this is to have networks that can be used to sort and classify both image and audio data, after being trained on a sufficient use case. My uses for it have been sorting wallpapers on my computer and cleaning datasets used for GANs.
+This is a PyTorch implementation of a file sorter that uses neural networks to sort images (and videos, based on the first frame) based on perceptual similarity. The eventual goal of this is to have networks that can be used to sort and classify both image and audio data, after being trained on a sufficient use case. My uses for it have been sorting wallpapers on my computer and cleaning datasets used for GANs.
 
 ## Installation
 

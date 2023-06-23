@@ -10,6 +10,7 @@ from dash.exceptions import PreventUpdate
 import pandas as pd
 import plotly.graph_objs as go
 import base64
+import warnings
 
 opt = Options()
 
@@ -20,6 +21,10 @@ else:
     print("Generating data...")
     datafile, label_images = generate_embeddings()
     data = datafile.dataset.data
+
+if not opt.use_hc:
+    warnings.warn(("It looks like clustering is using hiearchical clustering, which is not ideal for plotting",
+                   " (each point gets its own cluster label). Please consider setting use_hc to False in opts.yaml."))
 
 with open("dash_files/desc.md", "r") as file:
     desc_md = file.read()

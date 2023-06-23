@@ -1,6 +1,5 @@
 import torch.nn as nn
-from torch import randn, save, exp
-from torch.distributions import Normal
+from torch import randn, randn_like, save, exp
 from torchvision import datasets, transforms
 
 
@@ -78,15 +77,16 @@ class UpsampleBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(self,
                  n_blocks = 4,
-                 in_channels=3,
+                 in_channels = 3,
                  in_size=(256, 256),
                  dropout_val = 0.2,
-                 inner_linear = True,
                  latent_dim = 256,
                  channel_scale = 3,
                  layer_norm = True,
                  activation = nn.GELU(),
-                 downsample_factor = 4):
+                 downsample_factor = 4,
+                 kernel_sizes = None,
+                 latent_dim_kernel_size = 9):
         
         super().__init__()
 
@@ -96,31 +96,44 @@ class Encoder(nn.Module):
         self.out_size = (in_size[0] // ds_ratio, in_size[1] // ds_ratio)
         self.in_channels = in_channels
         self.dropout_val = dropout_val
-        self.inner_linear = inner_linear
+
         if layer_norm:
             self.norm = nn.LayerNorm((in_channels, in_size[0], in_size[1]))
 
+        if kernel_sizes is None:
+            self.kernel_sizes = [3] * n_blocks
+        else:
+            len_ks = len(kernel_sizes)
+            if len_ks < n_blocks: # tile kernel sizes if not enough
+                self.kernel_sizes = kernel_sizes * (n_blocks // len_ks) + kernel_sizes[:n_blocks % len_ks]
+            else:
+                self.kernel_sizes = kernel_sizes[:n_blocks]
+
         encoder = []
         channels = in_channels
-        for i in range(n_blocks):
+        for i, kernel_s in enumerate(self.kernel_sizes):
             new_channels = channels * channel_scale
             encoder.append(DownsampleBlock(channels, 
                                            new_channels, 
                                            dropout = dropout_val,
-                                           scale_factor = downsample_factor))
+                                           scale_factor = downsample_factor,
+                                           kernel_size = kernel_s))
             encoder.append(ResidualBlock(new_channels, 
                                          new_channels, 
-                                         dropout = dropout_val))
+                                         dropout = dropout_val,
+                                         kernel_size = kernel_s,))
             encoder.append(activation)
             channels = new_channels
 
         self.final_channels = channels
         
-        if inner_linear:
-            #TODO : make sure decoder can get this shape to unflatten
-            encoder.append(nn.Flatten())
-            encoder.append(nn.Linear(channels * self.out_size[0] * self.out_size[1], latent_dim))
-            encoder.append(activation)
+        if latent_dim is not None:
+            hw_dim = self.out_size[0] * self.out_size[1]
+            encoder.append(nn.Conv2d(channels, latent_dim // hw_dim, 
+                                     kernel_size = latent_dim_kernel_size, 
+                                     padding = "same"))
+
+        encoder.append(nn.Flatten(start_dim = 1))
 
         self.encoder = nn.Sequential(*encoder)
 
@@ -135,12 +148,13 @@ class Decoder(nn.Module):
                  in_channels=24,
                  in_size=(4, 4),
                  dropout_val = 0.2,
-                 inner_linear = True,
                  latent_dim = 256,
                  channel_scale = 3,
                  activation = nn.GELU(),
                  upsample_factor = 4,
-                 final_activation = nn.Tanh()):
+                 final_activation = nn.Tanh(),
+                 kernel_sizes = None,
+                 latent_dim_kernel_size = 9):
         
         super().__init__()
 
@@ -150,24 +164,40 @@ class Decoder(nn.Module):
         self.out_size = (in_size[0] * us_ratio, in_size[1] * us_ratio)
         self.in_channels = in_channels
         self.dropout_val = dropout_val
-        self.inner_linear = inner_linear
+
+        if kernel_sizes is None:
+            self.kernel_sizes = [3] * n_blocks
+        else:
+            len_ks = len(kernel_sizes)
+            if len_ks < n_blocks: # tile kernel sizes if not enough
+                self.kernel_sizes = kernel_sizes * (n_blocks // len_ks) + kernel_sizes[:n_blocks % len_ks]
+            else:
+                self.kernel_sizes = kernel_sizes[:n_blocks]
 
         decoder = []
 
-        if inner_linear:
-            decoder.append(nn.Linear(latent_dim, in_channels * self.in_size[0] * self.in_size[1]))
-            decoder.append(nn.Unflatten(-1, (in_channels, self.in_size[0], self.in_size[1])))
-            decoder.append(activation)
+        hw_dim = self.in_size[0] * self.in_size[1]
+        decoder.append(nn.Unflatten(-1, 
+                                    (latent_dim // hw_dim, self.in_size[0], self.in_size[1])))
+
+        if latent_dim is not None:
+            decoder.append(nn.Conv2d(latent_dim // hw_dim, in_channels,
+                                     kernel_size = latent_dim_kernel_size,
+                                     padding = "same"))
 
         channels = in_channels
-        for i in range(n_blocks):
+        for i, kernel_s in enumerate(self.kernel_sizes):
             new_channels = channels // channel_scale
             decoder.append(activation)
             decoder.append(UpsampleBlock(channels, 
                                          new_channels, 
                                          dropout = dropout_val,
-                                         scale_factor = upsample_factor))
-            decoder.append(ResidualBlock(new_channels, new_channels, dropout = dropout_val))
+                                         scale_factor = upsample_factor,
+                                         kernel_size = kernel_s))
+            decoder.append(ResidualBlock(new_channels, 
+                                         new_channels, 
+                                         dropout = dropout_val,
+                                         kernel_size = kernel_s,))
             
             channels = new_channels
 
@@ -184,45 +214,59 @@ class Decoder(nn.Module):
 
 class VisAutoEncoder(nn.Module):
     """
-    The standard convolutional autoencoder used in this project. 
-    Parameters:
-    ----------
 
     """
     def __init__(self,
-                 n_blocks = 4,
+                 n_blocks = 6,
                  name = "default_model",
                  in_channels = 3,
+                 start_channels = 12,
+                 channel_mult = 2,
+                 xsample_factor = 2,
                  in_size = (256, 256),
                  dropout_val = 0.2,
-                 inner_linear = True,
                  latent_dim = 512,
-                 layer_norm = True):
+                 layer_norm = True,
+                 kernel_sizes = [7, 3], # i like alternating between 7 and 3
+                 ):
         super(VisAutoEncoder, self).__init__()
         self.n_blocks = n_blocks
         self.in_size = in_size
         self.in_channels = in_channels
+        self.channel_mult = channel_mult
+        self.xsample_factor = xsample_factor
         self.dropout_val = dropout_val
         self.name = name
-        self.inner_linear = inner_linear
         self.latent_dim = latent_dim
 
+        if start_channels is not None:
+            self.in_conv = nn.Conv2d(in_channels, start_channels, kernel_size = 1)
+            self.out_conv = nn.Conv2d(start_channels, in_channels, kernel_size = 1)
+        else:
+            self.in_conv = nn.Identity()
+            self.out_conv = nn.Identity()
+            start_channels = in_channels
 
         self.encoder = Encoder(n_blocks = n_blocks,
-                               in_channels = in_channels,
+                               in_channels = start_channels,
                                in_size = in_size,
                                dropout_val = dropout_val,
-                               inner_linear = inner_linear,
                                layer_norm = layer_norm,
-                               latent_dim = latent_dim)
-        
+                               latent_dim = latent_dim,
+                               channel_scale = channel_mult,
+                               downsample_factor = xsample_factor,
+                               kernel_sizes = kernel_sizes,)
+        # reverse for decoder
+        kernel_sizes.reverse()
+
         self.decoder = Decoder(n_blocks = n_blocks,
                                in_channels = self.encoder.final_channels,
                                in_size = self.encoder.out_size,
                                dropout_val = dropout_val,
-                               inner_linear = inner_linear,
-                               latent_dim = latent_dim)
-        
+                               latent_dim = latent_dim,
+                               channel_scale = channel_mult,
+                               upsample_factor = xsample_factor,
+                               kernel_sizes = kernel_sizes,)
         
         print(f"Generating Visual Autoencoder with parameters:\n\tName : {name}\n\tImage (C,H,W) : ({in_channels}, {in_size})\n\tWith dropout value {dropout_val}")
 
@@ -230,15 +274,17 @@ class VisAutoEncoder(nn.Module):
         print(f"Autoencoder Latent Dimension Size: {latent_dim}")
 
     def forward(self, x, return_everything = True):
+        x = self.in_conv(x)
         x = self.encoder(x)
         x = self.decoder(x)
-        return x
+        return self.out_conv(x)
     
     def print_self_params(self):
         print("Total Model Parameters: ", sum(p.numel() for p in self.parameters() if p.requires_grad))
     
     # wrapper for image encoding
     def encode_image(self, image):
+        image = self.in_conv(image)
         encoding = self.encoder(image)
         encoding_vector = encoding.detach()
         return encoding_vector
@@ -269,19 +315,24 @@ class VarVisAutoEncoder(VisAutoEncoder):
         Proportion of tensor that will be dropped.
     """
     def __init__(self,
-                 n_blocks = 3,
+                 n_blocks = 6,
                  name = "default_model",
-                 in_channels=3,
-                 in_size=(256, 256),
+                 in_channels = 3,
+                 start_channels = 12,
+                 channel_mult = 2,
+                 xsample_factor = 2,
+                 in_size = (256, 256),
                  dropout_val = 0.2,
                  latent_dim = 512,
                  layer_norm = True):
         super().__init__(n_blocks = n_blocks,
                          name = name,
                          in_channels = in_channels,
+                         start_channels = start_channels,
                          in_size = in_size,
+                         channel_mult = channel_mult,
+                         xsample_factor = xsample_factor,
                          dropout_val = dropout_val,
-                         inner_linear = True,
                          latent_dim = latent_dim,
                          layer_norm = layer_norm)
 
@@ -290,27 +341,31 @@ class VarVisAutoEncoder(VisAutoEncoder):
 
     def forward(self, x, return_everything = False):
         #TODO : check this
+        x = self.in_conv(x)
         y = self.encoder(x)
         mean = self.mean_layer(y)
         log_variance = self.var_layer(y)
-        variance = exp(log_variance / 2)
-        pmf = Normal(mean, variance)
-        h = pmf.rsample()
-        x_out = self.decoder(h)
+
+        std = exp(log_variance / 2)
+        eps = randn_like(std)
+        h = mean + eps * std
+
+        x_out = self.out_conv(self.decoder(h))
         if return_everything:
             return x, mean, log_variance, h, x_out
         else:
             return x_out
     
     def encode_image(self, image):
+        image = self.in_conv(image)
         encoding = self.encoder(image)
 
         mean = self.mean_layer(encoding)
         log_variance = self.var_layer(encoding)
-        variance = exp(log_variance)
 
-        pmf = Normal(mean, variance)
-        encoding = pmf.rsample()
+        std = exp(log_variance / 2)
+        eps = randn_like(std)
+        encoding = mean + eps * std
         
         encoding_vector = encoding.detach()
         return encoding_vector

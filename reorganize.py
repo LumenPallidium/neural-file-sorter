@@ -1,8 +1,8 @@
 import os
 import pandas as pd
 import shutil
+import warnings
 from time import sleep
-
 from tqdm import tqdm
 from options.options import Options
 from embedding import generate_embeddings
@@ -23,6 +23,10 @@ def copy_to_new_loc(keep_old_structure = False,
     """
     assert not (rename and keep_old_structure), "rename and keep_old_structure cannot both be true"
     opt = Options()
+
+    if (not opt.use_hc) and (rename):
+        warnings.warn(("rename will not work ideally if hiearchical clustering was",
+                      " not used (which your opts.yaml file suggests, see use_hc))"))
 
     if not os.path.exists("data/embeddings.csv"):
         generate_embeddings()

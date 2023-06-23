@@ -60,7 +60,7 @@ def summarize_filetypes(dir_map):
     return out_df
 
 
-def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and scale", rot = (-10, 10), trans = (0.2, 0.2), rand_scale = (0.9, 1.1)):
+def transform_im(out_size = (256, 256), transform_mode = "affine and scale", rot = (-3, 3), trans = (0.1, 0.1), rand_scale = (0.9, 1.1)):
     """
     Transforms a PIL Image. 
     ----------
@@ -69,6 +69,7 @@ def transform_im(pil_im, out_size = (256, 256), transform_mode = "affine and sca
     if transform_mode == "affine and scale":
         transforms = torchvision.transforms.Compose([
             torchvision.transforms.RandomAffine(degrees=rot, translate=trans, interpolation=Image.BILINEAR),
+            torchvision.transforms.RandomHorizontalFlip(p=0.5),
             torchvision.transforms.RandomResizedCrop(size = out_size, scale = rand_scale),
             torchvision.transforms.ToTensor()])
     elif transform_mode == "resize only":
@@ -115,7 +116,7 @@ class Dataset(torch.utils.data.Dataset):
         self.return_path = return_path
 
         self.transform_mode = transform_mode
-        self.transform = transform_im(transform_mode, out_size = self.out_size, transform_mode = self.transform_mode) 
+        self.transform = transform_im(out_size = self.out_size, transform_mode = self.transform_mode) 
         #need to initialize to drop unsupported filetypes
         self.data = None
         self.initialize(shuffle = shuffle)

@@ -24,6 +24,22 @@ def l_n_reg(model, device, norm = 1):
             reg_loss = reg_loss + torch.norm(param, norm)
     return reg_loss
 
+class WarmUpScheduler(object):
+    def __init__(self, optimizer, scheduler, warmup_iter, total_iter = 300000):
+        self.optimizer = optimizer
+        self.scheduler = scheduler(optimizer, total_iter - warmup_iter)
+        self.warmup_iter = warmup_iter
+        self.iter = 0
+    
+    def step(self):
+        if self.iter < self.warmup_iter:
+            lr = self.iter / self.warmup_iter * self.scheduler.get_last_lr()[0]
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+        else:
+            self.scheduler.step()
+        self.iter += 1
+
 def tensor2im(x):
     return torchvision.transforms.ToPILImage()(x)
 
@@ -67,20 +83,20 @@ def create_loss(opt):
             
             # output of forward in this case is model input, mean/variance hidden layers
             # the encoded state as a sample, and the ouput state
-            inp = output[0]
             mean = output[1]
             log_variance = output[2]
-            encod = output[3]
+
             output = output[4]
             
             # VAE is often unstable initially, so vary the loss depending on iter
-            if curr_iter > opt.warmup_iters:
+            if curr_iter > opt.vae_warmup_iters:
                 # loss between the input and actual output
-                loss = loss_mse(inp, output)
+                loss = loss_mse(data, output)
             else:
                 # warmup loss does not add variance to the output
                 x_hat = model.decoder(mean)
-                loss = loss_mse(inp, x_hat)
+                x_hat = model.out_conv(x_hat)
+                loss = loss_mse(data, x_hat)
 
             # KL Div loss when goal distribution is assumed standard normal
             # and posterior approximation normal (not neccesarily standard)
@@ -134,7 +150,12 @@ def train(opt):
         
     # currently defaulting to adam, will add more optimizer options later
     loss_f = create_loss(opt)
-    optimizer = torch.optim.Adam(model.parameters(), lr = opt.lr)
+
+    scheduler = WarmUpScheduler(torch.optim.Adam(model.parameters(), 
+                                                lr = opt.lr, 
+                                                amsgrad = True), 
+                            torch.optim.lr_scheduler.CosineAnnealingLR, 
+                            warmup_iter = opt.warmup_iters // opt.batch_size,)
 
     for epoch in range(1, opt.epoch_num + 1):
         print(f"Epoch {epoch}")
@@ -150,8 +171,7 @@ def train(opt):
             
             data = data.to(device)
 
-            # undoing accumulation of grad
-            optimizer.zero_grad()
+            scheduler.optimizer.zero_grad()
 
             batch_size = opt.batch_size
             total_iters += opt.batch_size
@@ -173,7 +193,8 @@ def train(opt):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), opt.clip)
             
             # adjust weights with optimizer based on backprop
-            optimizer.step()
+            scheduler.optimizer.step()
+            scheduler.step()
             
             epoch_loss += loss.item()
 
