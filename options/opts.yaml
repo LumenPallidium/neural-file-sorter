@@ -1,5 +1,5 @@
 # GENERAL ARGS
-filepath: D:/Projects/image_datasets/ILSVRC/Data/CLS-LOC/train
+filepath: H:/My Documents/Backgrounds
 map_depth : -1 # how many subfolders deep to map
 # MODEL ARGS
 visual_aa_args :
@@ -17,21 +17,20 @@ sample_dir : data/
 samples_every : 156 # how frequently to save samples, note this is in batches so ~10k here
 clip_grad : False
 reg_penalty : 0.0001
-lr : 0.0005
-beta : 0.000002
+lr : 0.0003
+beta : 0.000003
 epoch_num : 1
 regularize : False
 reg_norm : 1
 save_path : ckpts/
 # CLIP ARGS
-use_clip : True
+use_clip : False
 use_clip_labels : False
 clip_categories : [moody, sunset, neon, comfy, painting, military, city, geometric, text, vaporwave, tropical, forest, woman, vehicle, anime, sunrise, stars, animal]
 fix_labels : True
 # DASHBOARD AND VIZ ARGS
 reencode : False
 regenerate_embedding : False
-use_hc : True # use hierarchical clustering instead of k-means (ideal for renaming files)
 estimate_k : False
 external_stylesheets : [options/style_sheet.css]
 embedding_method : t-sne

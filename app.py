@@ -11,7 +11,6 @@ app = dash.Dash(
 
 )
 
-
 server = app.server
 app.layout = create_layout(app)
 callbacks(app)

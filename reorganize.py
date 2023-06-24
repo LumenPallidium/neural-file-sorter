@@ -7,8 +7,7 @@ from tqdm import tqdm
 from options.options import Options
 from embedding import generate_embeddings
 
-def copy_to_new_loc(keep_old_structure = False, 
-                    reorganize_col = "labels",
+def copy_to_new_loc(keep_old_structure = False,
                     rename = True):
     """
     Function that sorts data in the hard-drive based on the labels generated in
@@ -24,13 +23,20 @@ def copy_to_new_loc(keep_old_structure = False,
     assert not (rename and keep_old_structure), "rename and keep_old_structure cannot both be true"
     opt = Options()
 
-    if (not opt.use_hc) and (rename):
-        warnings.warn(("rename will not work ideally if hiearchical clustering was",
-                      " not used (which your opts.yaml file suggests, see use_hc))"))
-
     if not os.path.exists("data/embeddings.csv"):
         generate_embeddings()
     df = pd.read_csv("data/embeddings.csv")
+
+    if rename:
+        assert "labels_hc" in df.columns, "labels_hc column not found, cannot rename"
+        reorganize_col = "labels_hc"
+    else:
+        if "labels_clip" in df.columns:
+            reorganize_col = "labels_clip"
+        elif "labels_k" in df.columns:
+            reorganize_col = "labels_k"
+        else:
+            raise KeyError("No labels found in dataframe. Please generate embeddings with labels.")
     
     # the folder where you are copying
     out_folder = opt.out_filepath

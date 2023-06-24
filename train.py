@@ -27,7 +27,7 @@ def l_n_reg(model, device, norm = 1):
 class WarmUpScheduler(object):
     def __init__(self, optimizer, scheduler, warmup_iter, total_iter = 300000):
         self.optimizer = optimizer
-        self.scheduler = scheduler(optimizer, total_iter - warmup_iter)
+        self.scheduler = scheduler(optimizer, total_iter - warmup_iter, eta_min = optimizer.defaults["lr"] / 1e3)
         self.warmup_iter = warmup_iter
         self.iter = 0
     

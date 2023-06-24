@@ -293,6 +293,10 @@ class VisAutoEncoder(nn.Module):
     def save(self, save_path = "ckpts/"):
         save(self.state_dict(), save_path + self.name + ".pt")
         print(f"\tModel saved to {save_path}")
+
+    def sample(self, n_samples = 1, device = "cpu"):
+        z = randn(n_samples, self.latent_dim, device = device)
+        return self.out_conv(self.decode(z))
     
             
             

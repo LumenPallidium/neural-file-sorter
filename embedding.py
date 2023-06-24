@@ -141,25 +141,25 @@ def generate_embeddings():
     label_images = None
     # adding top 1 label and k-means labels
     if use_clip and use_clip_labels:
-        encodings["labels"] = encodings[opt.clip_categories].idxmax(axis = 1)
+        encodings["labels_clip"] = encodings[opt.clip_categories].idxmax(axis = 1)
         if fix_labels:
             # renaming labels using CLIP categories for clarity
             encodings = relabel(encodings, opt.clip_categories)  
 
     else:
-        if opt.use_hc:
-            hc = HierarchicalClusterer()
-            labels = hc.label_data(encodings_np)
+        hc = HierarchicalClusterer()
+        labels_hc = hc.label_data(encodings_np)
+
+        # k-means clustering of the data
+        if estimate_k:
+            kmeans = get_best_kmeans(encodings_np)
+            labels_k = kmeans.labels_
         else:
-            # k-means clustering of the data
-            if estimate_k:
-                kmeans = get_best_kmeans(encodings_np)
-                labels = kmeans.labels_
-            else:
-                centroids, labels, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
-                if not quick:
-                    label_images = decode_images(centroids, model, device)
-        encodings["labels"] = labels
+            centroids, labels_k, inertia = k_means(encodings_np, n_clusters = opt.n_clusters)
+            if not quick:
+                label_images = decode_images(centroids, model, device)
+        encodings["labels_hc"] = labels_hc
+        encodings["labels_k"] = labels_k
     
     if regenerate_embedding or (not os.path.exists("data/embeddings.csv")):
         # embedding the encoding vectors, note n_components must be 3 for 3D
@@ -171,7 +171,8 @@ def generate_embeddings():
 
         #making a dataframe of embeddings
         encodings[["embeddings_x", "embeddings_y", "embeddings_z"]] = embeds
-        embeddings = encodings.loc[:, ["path", "embeddings_x", "embeddings_y", "embeddings_z", "labels"]]
+        label_cols = encodings.columns[encodings.columns.str.contains("labels")]
+        embeddings = encodings.loc[:, ["path", "embeddings_x", "embeddings_y", "embeddings_z"] + list(label_cols)]
         embeddings.to_csv("data/embeddings.csv", index = False)
     else:
         print("Loading embeddings...")
@@ -206,7 +207,7 @@ def get_best_kmeans(np_data, k_max = 25, k_min = 2):
     print(f"\t\tBest k-estimated to be {best_k}, with silhouette score of {k_dict[best_k]}")
     return model_dict[best_k]
  
-def relabel(data, label_cols, labels_col = "labels"):
+def relabel(data, label_cols, labels_col = "labels_clip"):
     """
     Sets label for generic k-means group label to the closest in the CLIP labels.
     """

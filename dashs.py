@@ -22,9 +22,6 @@ else:
     datafile, label_images = generate_embeddings()
     data = datafile.dataset.data
 
-if not opt.use_hc:
-    warnings.warn(("It looks like clustering is using hiearchical clustering, which is not ideal for plotting",
-                   " (each point gets its own cluster label). Please consider setting use_hc to False in opts.yaml."))
 
 with open("dash_files/desc.md", "r") as file:
     desc_md = file.read()
@@ -32,7 +29,15 @@ with open("dash_files/desc.md", "r") as file:
 static = "/static/"
 
 def create_layout(app, dataset = data):
-    def embedding_scatter_plot(df, label_col = "labels"):
+    def embedding_scatter_plot(df):
+
+        if "labels_clip" in df.columns:
+            label_col = "labels_clip"
+        elif "labels_k" in df.columns:
+            label_col = "labels_k"
+        else:
+            raise KeyError("No labels found in dataframe. Please generate embeddings with labels.")
+
         try:  
             fig = px.scatter_3d(data, x="embeddings_x", y="embeddings_y", z="embeddings_z", color = label_col, height = 700)
             return fig
